@@ -8,6 +8,10 @@ import Dashboard from './pages/Dashboard'
 import CrearLista from './pages/CrearLista'
 import Cotizaciones from './pages/Cotizaciones'
 import HistorialPedidos from './pages/HistorialPedidos'
+import DashboardProveedor from './pages/DashboardProveedor'
+import CatalogoProveedor from './pages/CatalogoProveedor'
+import ResponderCotizacion from './pages/ResponderCotizacion'
+import DashboardAdmin from './pages/DashboardAdmin'
 import './index.css'
 
 createRoot(document.getElementById('root')).render(
@@ -22,6 +26,10 @@ createRoot(document.getElementById('root')).render(
           <Route path="/listas/nueva" element={<CrearLista />} />
           <Route path="/cotizaciones" element={<Cotizaciones />} />
           <Route path="/pedidos" element={<HistorialPedidos />} />
+          <Route path="/proveedor/dashboard" element={<DashboardProveedor />} />
+          <Route path="/proveedor/catalogo" element={<CatalogoProveedor />} />
+          <Route path="/proveedor/cotizar" element={<ResponderCotizacion />} />
+          <Route path="/admin/dashboard" element={<DashboardAdmin />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

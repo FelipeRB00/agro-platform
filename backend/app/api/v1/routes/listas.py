@@ -1,0 +1,135 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from app.db.database import get_db
+from app.models.lista_compra import ListaCompra, ItemLista
+from app.models.agricultor import Agricultor
+from app.models.catalogo import CatalogoProveedor
+from app.models.alerta import Alerta
+from app.schemas.lista_compra import ListaCompraCreate, ListaCompraResponse
+from app.core.dependencies import get_current_user, require_rol
+from app.models.usuario import Usuario
+
+router = APIRouter(prefix="/listas", tags=["Listas de Compra"])
+
+def get_agricultor(db: Session, usuario: Usuario):
+    agricultor = db.query(Agricultor).filter(
+        Agricultor.usuario_id == usuario.id
+    ).first()
+    if not agricultor:
+        raise HTTPException(status_code=404, detail="Perfil de agricultor no encontrado")
+    return agricultor
+
+@router.post("/", response_model=ListaCompraResponse)
+def crear_lista(
+    data: ListaCompraCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+
+    lista = ListaCompra(
+        agricultor_id=agricultor.id,
+        titulo=data.titulo,
+        estado=data.estado
+    )
+    db.add(lista)
+    db.flush()
+
+    for item_data in data.items:
+        item = ItemLista(
+            lista_id=lista.id,
+            insumo_id=item_data.insumo_id,
+            cantidad=item_data.cantidad,
+            unidad_medida=item_data.unidad_medida,
+            nota=item_data.nota
+        )
+        db.add(item)
+
+    db.commit()
+    db.refresh(lista)
+    return lista
+
+@router.get("/", response_model=List[ListaCompraResponse])
+def mis_listas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+    return db.query(ListaCompra).filter(
+        ListaCompra.agricultor_id == agricultor.id
+    ).order_by(ListaCompra.creado_en.desc()).all()
+
+@router.get("/{lista_id}", response_model=ListaCompraResponse)
+def detalle_lista(
+    lista_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+    lista = db.query(ListaCompra).filter(
+        ListaCompra.id == lista_id,
+        ListaCompra.agricultor_id == agricultor.id
+    ).first()
+    if not lista:
+        raise HTTPException(status_code=404, detail="Lista no encontrada")
+    return lista
+
+@router.post("/{lista_id}/publicar", response_model=ListaCompraResponse)
+def publicar_lista(
+    lista_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+    lista = db.query(ListaCompra).filter(
+        ListaCompra.id == lista_id,
+        ListaCompra.agricultor_id == agricultor.id
+    ).first()
+    if not lista:
+        raise HTTPException(status_code=404, detail="Lista no encontrada")
+    if lista.estado != "borrador":
+        raise HTTPException(status_code=400, detail="Solo se pueden publicar listas en borrador")
+
+    lista.estado = "publicada"
+
+    # Alertar a proveedores que tengan los insumos solicitados
+    insumo_ids = [item.insumo_id for item in lista.items]
+    catalogos = db.query(CatalogoProveedor).filter(
+        CatalogoProveedor.insumo_id.in_(insumo_ids),
+        CatalogoProveedor.activo == True
+    ).all()
+
+    proveedores_alertados = set()
+    for catalogo in catalogos:
+        if catalogo.proveedor_id not in proveedores_alertados:
+            alerta = Alerta(
+                lista_id=lista.id,
+                proveedor_id=catalogo.proveedor_id
+            )
+            db.add(alerta)
+            proveedores_alertados.add(catalogo.proveedor_id)
+
+    db.commit()
+    db.refresh(lista)
+    return lista
+
+@router.delete("/{lista_id}")
+def eliminar_lista(
+    lista_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+    lista = db.query(ListaCompra).filter(
+        ListaCompra.id == lista_id,
+        ListaCompra.agricultor_id == agricultor.id
+    ).first()
+    if not lista:
+        raise HTTPException(status_code=404, detail="Lista no encontrada")
+    if lista.estado == "publicada":
+        raise HTTPException(status_code=400, detail="No se puede eliminar una lista publicada")
+
+    db.delete(lista)
+    db.commit()
+    return {"message": "Lista eliminada"}
