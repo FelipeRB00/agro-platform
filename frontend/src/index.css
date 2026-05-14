@@ -1,26 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  --verde-oscuro:  #3A5A1A;
-  --verde-medio:   #5A8A2A;
-  --verde-claro:   #C8DF9A;
-  --verde-fondo:   #F7F9F2;
-  --cafe-oscuro:   #8B4A1A;
-  --cafe-claro:    #F0EAD8;
-  --borde:         #D8E8C8;
-  --texto-primario: #3A5A1A;
-  --texto-secundario: #8A9A7A;
-  --blanco:        #ffffff;
-}
-
-body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  background-color: var(--verde-fondo);
-  color: var(--texto-primario);
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
