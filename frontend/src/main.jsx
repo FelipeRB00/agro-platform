@@ -23,6 +23,10 @@ import ResponderCotizacion from './pages/ResponderCotizacion'
 // Admin
 import DashboardAdmin from './pages/DashboardAdmin'
 
+//IA
+import InteligenciaArtificial from './pages/InteligenciaArtificial'
+
+
 import './index.css'
 
 function HomeRedirect() {
@@ -70,6 +74,11 @@ createRoot(document.getElementById('root')).render(
               <HistorialPedidos />
             </ProtectedRoute>
           } />
+          <Route path="/ia" element={
+  <ProtectedRoute roles={['agricultor']}>
+    <InteligenciaArtificial />
+  </ProtectedRoute>
+} />
 
           {/* Proveedor */}
           <Route path="/proveedor/dashboard" element={
