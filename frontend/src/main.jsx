@@ -13,6 +13,7 @@ import CatalogoProveedor from './pages/CatalogoProveedor'
 import ResponderCotizacion from './pages/ResponderCotizacion'
 import DashboardAdmin from './pages/DashboardAdmin'
 import MisListas from './pages/MisListas'
+import SolicitudesProveedor from './pages/SolicitudesProveedor'
 import './index.css'
 
 createRoot(document.getElementById('root')).render(
@@ -32,6 +33,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/proveedor/cotizar" element={<ResponderCotizacion />} />
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
           <Route path="/listas" element={<MisListas />} />
+          <Route path="/proveedor/solicitudes" element={<SolicitudesProveedor />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

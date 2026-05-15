@@ -4,7 +4,7 @@ from app.db.database import Base, engine
 from app.models import (usuario, proveedor, agricultor,
                         insumo, catalogo, lista_compra,
                         cotizacion, pedido, pago, historial, alerta)
-from app.api.v1.routes import auth, insumos, listas, catalogo
+from app.api.v1.routes import auth, insumos, listas, catalogo, cotizaciones
 from app.db.seed import seed_insumos
 
 
@@ -30,7 +30,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(insumos.router, prefix="/api/v1")
 app.include_router(listas.router, prefix="/api/v1")
 app.include_router(catalogo.router, prefix="/api/v1")
-
+app.include_router(cotizaciones.router, prefix="/api/v1")
 
 @app.get("/")
 def root():
