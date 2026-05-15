@@ -16,19 +16,22 @@ export default function Login() {
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
   const handleLogin = async (e) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      const res = await api.post('/auth/login', form)
-      login(res.data)
-      navigate('/dashboard')
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Error al iniciar sesión')
-    } finally {
-      setLoading(false)
-    }
+  e.preventDefault()
+  setError('')
+  setLoading(true)
+  try {
+    const res = await api.post('/auth/login', form)
+    login(res.data)
+    // Redirigir según rol
+    if (res.data.rol === 'agricultor') navigate('/dashboard')
+    else if (res.data.rol === 'proveedor') navigate('/proveedor/dashboard')
+    else if (res.data.rol === 'admin') navigate('/admin/dashboard')
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Error al iniciar sesión')
+  } finally {
+    setLoading(false)
   }
+}
 
   return (  
 <div className="bg-[#e8f0e0] min-h-screen flex items-center justify-center font-sans antialiased text-on-surface">

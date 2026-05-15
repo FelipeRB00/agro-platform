@@ -40,36 +40,37 @@ export default function CrearLista() {
   const handleRemove = (id) => setItems(items.filter(i => i.id !== id))
 
   const handleSubmit = async (estado) => {
-    if (!titulo || items.length === 0) {
-      setError('Agrega un título y al menos un ítem')
-      return
-    }
-    setLoading(true)
-    setError('')
-    try {
-      const lista = await api.post('/listas/', {
-        titulo,
-        estado,
-        items: items.map(i => ({
-          insumo_id: parseInt(i.insumo_id),
-          cantidad: parseFloat(i.cantidad),
-          unidad_medida: i.unidad,
-          nota: i.nota || null
-        }))
-      })
-
-      // Si se publicó, alertar proveedores automáticamente
-      if (estado === 'publicada') {
-        await api.post(`/listas/${lista.data.id}/publicar`)
-      }
-
-      navigate('/listas')
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Error al guardar la lista')
-    } finally {
-      setLoading(false)
-    }
+  if (!titulo || items.length === 0) {
+    setError('Agrega un título y al menos un ítem')
+    return
   }
+  setLoading(true)
+  setError('')
+  try {
+    // Siempre crear como borrador primero
+    const res = await api.post('/listas/', {
+      titulo,
+      estado: 'borrador',
+      items: items.map(i => ({
+        insumo_id: parseInt(i.insumo_id),
+        cantidad: parseFloat(i.cantidad),
+        unidad_medida: i.unidad,
+        nota: i.nota || null
+      }))
+    })
+
+    // Si quiere publicar, llamar al endpoint de publicar
+    if (estado === 'publicada') {
+      await api.post(`/listas/${res.data.id}/publicar`)
+    }
+
+    navigate('/listas')
+  } catch (err) {
+    setError(err.response?.data?.detail || 'Error al guardar la lista')
+  } finally {
+    setLoading(false)
+  }
+}
 
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">

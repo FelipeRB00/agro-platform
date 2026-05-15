@@ -31,15 +31,15 @@ export default function CatalogoProveedor() {
   ]
 
   useEffect(() => {
-    Promise.all([
-      api.get('/catalogo/'),
-      api.get('/insumos/')
-    ]).then(([catRes, insRes]) => {
-      setProductos(catRes.data)
-      setInsumos(insRes.data)
-    }).catch(() => setError('Error al cargar datos'))
+  api.get('/catalogo/')
+    .then(res => setProductos(res.data))
+    .catch(() => {})
     .finally(() => setLoading(false))
-  }, [])
+
+  api.get('/insumos/')
+    .then(res => setInsumos(res.data))
+    .catch(() => setError('Error al cargar insumos'))
+}, [])
 
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
