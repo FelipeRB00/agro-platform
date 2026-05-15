@@ -1,25 +1,18 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import logo from '../assets/logo.png'
-
-const INSUMOS = [
-  { id: 1, nombre: 'Urea 46%', categoria: 'Fertilizante' },
-  { id: 2, nombre: 'Semillas de Maíz Dekalb', categoria: 'Semilla' },
-  { id: 3, nombre: 'Fosfato Diamónico (DAP)', categoria: 'Fertilizante' },
-  { id: 4, nombre: 'Glifosato 48%', categoria: 'Plaguicida' },
-  { id: 5, nombre: 'Nitrato de Potasio', categoria: 'Fertilizante' },
-  { id: 6, nombre: 'Semillas de Trigo', categoria: 'Semilla' },
-]
 
 export default function CrearLista() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
   const [titulo, setTitulo] = useState('')
   const [items, setItems] = useState([])
+  const [insumos, setInsumos] = useState([])
   const [form, setForm] = useState({ insumo_id: '', cantidad: '', unidad: 'kg', nota: '' })
   const [loading, setLoading] = useState(false)
+  const [loadingInsumos, setLoadingInsumos] = useState(true)
   const [error, setError] = useState('')
 
   const navItems = [
@@ -29,9 +22,17 @@ export default function CrearLista() {
     { icon: 'settings', label: 'Configuración', path: '/configuracion' },
   ]
 
+  // Cargar insumos reales desde la API
+  useEffect(() => {
+    api.get('/insumos/')
+      .then(res => setInsumos(res.data))
+      .catch(() => setError('Error al cargar insumos'))
+      .finally(() => setLoadingInsumos(false))
+  }, [])
+
   const handleAddItem = () => {
     if (!form.insumo_id || !form.cantidad) return
-    const insumo = INSUMOS.find(i => i.id === parseInt(form.insumo_id))
+    const insumo = insumos.find(i => i.id === parseInt(form.insumo_id))
     setItems([...items, { ...form, insumo, id: Date.now() }])
     setForm({ insumo_id: '', cantidad: '', unidad: 'kg', nota: '' })
   }
@@ -46,16 +47,22 @@ export default function CrearLista() {
     setLoading(true)
     setError('')
     try {
-      await api.post('/listas', {
+      const lista = await api.post('/listas/', {
         titulo,
         estado,
         items: items.map(i => ({
           insumo_id: parseInt(i.insumo_id),
           cantidad: parseFloat(i.cantidad),
           unidad_medida: i.unidad,
-          nota: i.nota
+          nota: i.nota || null
         }))
       })
+
+      // Si se publicó, alertar proveedores automáticamente
+      if (estado === 'publicada') {
+        await api.post(`/listas/${lista.data.id}/publicar`)
+      }
+
       navigate('/listas')
     } catch (err) {
       setError(err.response?.data?.detail || 'Error al guardar la lista')
@@ -115,7 +122,6 @@ export default function CrearLista() {
         {/* Content */}
         <main className="flex-1 p-5 md:p-10 max-w-7xl mx-auto w-full">
 
-          {/* Back */}
           <div className="mb-6">
             <button onClick={() => navigate('/dashboard')}
               className="flex items-center gap-1 text-primary text-sm font-semibold hover:underline mb-2">
@@ -136,19 +142,15 @@ export default function CrearLista() {
 
               {/* Título */}
               <section className="bg-white rounded-xl border border-outline-variant/30 p-6 shadow-sm">
-                <label className="block text-sm font-semibold text-on-surface mb-2" htmlFor="titulo">
-                  Título de la Lista
-                </label>
-                <input id="titulo" type="text" placeholder="Ej: Insumos de temporada Otoño 2026"
+                <label className="block text-sm font-semibold text-on-surface mb-2">Título de la Lista</label>
+                <input type="text" placeholder="Ej: Insumos de temporada Otoño 2026"
                   value={titulo} onChange={e => setTitulo(e.target.value)}
-                  className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all bg-white" />
+                  className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all" />
               </section>
 
               {/* Agregar ítem */}
               <section className="bg-white rounded-xl border border-outline-variant/30 p-6 shadow-sm">
-                <h3 className="font-semibold text-on-surface text-lg mb-4 pb-4 border-b border-outline-variant/30">
-                  Añadir Ítems
-                </h3>
+                <h3 className="font-semibold text-on-surface text-lg mb-4 pb-4 border-b border-outline-variant/30">Añadir Ítems</h3>
                 <div className="flex flex-col md:flex-row gap-4 items-end">
 
                   {/* Insumo */}
@@ -157,10 +159,12 @@ export default function CrearLista() {
                     <div className="relative">
                       <span className="material-symbols-outlined absolute left-3 top-3 text-outline text-sm">search</span>
                       <select value={form.insumo_id} onChange={e => setForm({ ...form, insumo_id: e.target.value })}
-                        className="w-full border border-outline-variant rounded-lg pl-9 pr-4 py-3 text-sm text-on-surface focus:outline-none focus:border-secondary bg-white appearance-none">
-                        <option value="">Seleccionar insumo...</option>
-                        {INSUMOS.map(i => (
-                          <option key={i.id} value={i.id}>{i.nombre}</option>
+                        className="w-full border border-outline-variant rounded-lg pl-9 pr-4 py-3 text-sm focus:outline-none focus:border-secondary bg-white appearance-none">
+                        <option value="">
+                          {loadingInsumos ? 'Cargando insumos...' : 'Seleccionar insumo...'}
+                        </option>
+                        {insumos.map(i => (
+                          <option key={i.id} value={i.id}>{i.nombre} ({i.categoria})</option>
                         ))}
                       </select>
                     </div>
@@ -171,14 +175,14 @@ export default function CrearLista() {
                     <label className="block text-xs font-semibold text-on-surface-variant mb-1">Cantidad</label>
                     <input type="number" min="1" placeholder="0"
                       value={form.cantidad} onChange={e => setForm({ ...form, cantidad: e.target.value })}
-                      className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-secondary bg-white" />
+                      className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary" />
                   </div>
 
                   {/* Unidad */}
                   <div className="w-full md:w-28">
                     <label className="block text-xs font-semibold text-on-surface-variant mb-1">Unidad</label>
                     <select value={form.unidad} onChange={e => setForm({ ...form, unidad: e.target.value })}
-                      className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-secondary bg-white">
+                      className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary bg-white">
                       <option value="kg">kg</option>
                       <option value="litro">Litros</option>
                       <option value="saco">Sacos</option>
@@ -217,14 +221,14 @@ export default function CrearLista() {
                       </thead>
                       <tbody>
                         {items.map(item => (
-                          <tr key={item.id} className="border-b border-outline-variant/30 hover:bg-gray-50 transition-colors">
-                            <td className="py-4 px-4 text-sm text-on-surface font-medium">{item.insumo?.nombre}</td>
+                          <tr key={item.id} className="border-b border-outline-variant/30 hover:bg-gray-50">
+                            <td className="py-4 px-4 text-sm font-medium">{item.insumo?.nombre}</td>
                             <td className="py-4 px-4">
-                              <span className="bg-[#b7d6a8]/20 text-[#1e3717] px-2 py-1 rounded text-xs font-semibold">
+                              <span className="bg-[#b7d6a8]/20 text-[#1e3717] px-2 py-1 rounded text-xs font-semibold capitalize">
                                 {item.insumo?.categoria}
                               </span>
                             </td>
-                            <td className="py-4 px-4 text-sm text-on-surface text-right font-semibold">{item.cantidad}</td>
+                            <td className="py-4 px-4 text-sm text-right font-semibold">{item.cantidad}</td>
                             <td className="py-4 px-4 text-sm text-outline">{item.unidad}</td>
                             <td className="py-4 px-4 text-center">
                               <button onClick={() => handleRemove(item.id)}
@@ -257,7 +261,7 @@ export default function CrearLista() {
                   <button onClick={() => handleSubmit('publicada')} disabled={loading}
                     className="w-full bg-primary text-white py-3 px-6 rounded-lg text-sm font-bold hover:bg-primary/90 transition-colors flex justify-center items-center gap-2 disabled:opacity-60">
                     <span className="material-symbols-outlined text-sm">send</span>
-                    Publicar a Proveedores
+                    {loading ? 'Publicando...' : 'Publicar a Proveedores'}
                   </button>
                   <button onClick={() => handleSubmit('borrador')} disabled={loading}
                     className="w-full bg-transparent text-secondary border border-secondary py-3 px-6 rounded-lg text-sm font-bold hover:bg-secondary/10 transition-colors flex justify-center items-center gap-2">

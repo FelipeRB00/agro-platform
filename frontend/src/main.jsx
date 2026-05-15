@@ -12,6 +12,7 @@ import DashboardProveedor from './pages/DashboardProveedor'
 import CatalogoProveedor from './pages/CatalogoProveedor'
 import ResponderCotizacion from './pages/ResponderCotizacion'
 import DashboardAdmin from './pages/DashboardAdmin'
+import MisListas from './pages/MisListas'
 import './index.css'
 
 createRoot(document.getElementById('root')).render(
@@ -30,6 +31,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/proveedor/catalogo" element={<CatalogoProveedor />} />
           <Route path="/proveedor/cotizar" element={<ResponderCotizacion />} />
           <Route path="/admin/dashboard" element={<DashboardAdmin />} />
+          <Route path="/listas" element={<MisListas />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
