@@ -1,59 +1,8 @@
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import api from '../services/api'
 import logo from '../assets/logo.png'
-
-const lista = {
-  numero: '4092',
-  estado: 'Comparando',
-  fecha_entrega: '15 Oct 2026',
-  items: [
-    { nombre: 'Urea 46%', desc: 'Fertilizante Granulado', cantidad: '50 Ton' },
-    { nombre: 'Semillas de Maíz', desc: 'Híbrido DK-72', cantidad: '200 Bolsas' },
-    { nombre: 'Glifosato 48%', desc: 'Herbicida Líquido', cantidad: '500 Litros' },
-  ]
-}
-
-const cotizaciones = [
-  {
-    id: 1,
-    proveedor: 'AgroInsumos S.A.',
-    ubicacion: 'Zona Norte, a 45km',
-    estado: 'aceptada',
-    mejor: true,
-    total: '$65,250.00',
-    items: [
-      { nombre: 'Urea 46%', precio: '$520.00', subtotal: '$26,000.00' },
-      { nombre: 'Semillas de Maíz', precio: '$180.00', subtotal: '$36,000.00' },
-      { nombre: 'Glifosato 48%', precio: '$6.50', subtotal: '$3,250.00' },
-    ]
-  },
-  {
-    id: 2,
-    proveedor: 'FertiCampo',
-    ubicacion: 'Zona Centro, a 12km',
-    estado: 'pendiente',
-    mejor: false,
-    total: '$67,150.00',
-    items: [
-      { nombre: 'Urea 46%', precio: '$535.00', subtotal: '$26,750.00' },
-      { nombre: 'Semillas de Maíz', precio: '$185.00', subtotal: '$37,000.00' },
-      { nombre: 'Glifosato 48%', precio: '$6.80', subtotal: '$3,400.00' },
-    ]
-  },
-  {
-    id: 3,
-    proveedor: 'Semillas del Sur',
-    ubicacion: 'Zona Sur, a 120km',
-    estado: 'rechazada',
-    mejor: false,
-    total: '$70,600.00',
-    items: [
-      { nombre: 'Urea 46%', precio: '$560.00', subtotal: '$28,000.00' },
-      { nombre: 'Semillas de Maíz', precio: '$195.00', subtotal: '$39,000.00' },
-      { nombre: 'Glifosato 48%', precio: '$7.20', subtotal: '$3,600.00' },
-    ]
-  }
-]
 
 const estadoBadge = {
   aceptada: 'bg-green-100 text-green-800',
@@ -70,13 +19,76 @@ const estadoLabel = {
 export default function Cotizaciones() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const listaId = location.state?.lista_id
+
+  const [listas, setListas] = useState([])
+  const [listaSeleccionada, setListaSeleccionada] = useState(null)
+  const [cotizaciones, setCotizaciones] = useState([])
+  const [loadingListas, setLoadingListas] = useState(true)
+  const [loadingCotizaciones, setLoadingCotizaciones] = useState(false)
+  const [aceptando, setAceptando] = useState(null)
+  const [mensaje, setMensaje] = useState('')
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
     { icon: 'shopping_cart', label: 'Mis Listas', path: '/listas' },
     { icon: 'request_quote', label: 'Cotizaciones', path: '/cotizaciones', active: true },
+    { icon: 'history', label: 'Pedidos', path: '/pedidos' },
     { icon: 'settings', label: 'Configuración', path: '/configuracion' },
   ]
+
+  // Cargar listas publicadas
+  useEffect(() => {
+    api.get('/listas/')
+      .then(res => {
+        const publicadas = res.data.filter(l => l.estado === 'publicada' || l.estado === 'cerrada')
+        setListas(publicadas)
+        // Si viene con lista_id desde navegación, seleccionarla
+        if (listaId) {
+          const lista = publicadas.find(l => l.id === listaId)
+          if (lista) seleccionarLista(lista)
+        } else if (publicadas.length > 0) {
+          seleccionarLista(publicadas[0])
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingListas(false))
+  }, [])
+
+  const seleccionarLista = (lista) => {
+    setListaSeleccionada(lista)
+    setLoadingCotizaciones(true)
+    setCotizaciones([])
+    api.get(`/cotizaciones/por-lista/${lista.id}`)
+      .then(res => setCotizaciones(res.data))
+      .catch(() => {})
+      .finally(() => setLoadingCotizaciones(false))
+  }
+
+  const handleAceptar = async (cotizacionId) => {
+    if (!confirm('¿Aceptar esta cotización? Las demás serán rechazadas automáticamente.')) return
+    setAceptando(cotizacionId)
+    try {
+      await api.put(`/cotizaciones/${cotizacionId}/aceptar`)
+      setMensaje('✅ ¡Cotización aceptada! La lista ha sido cerrada.')
+      // Recargar cotizaciones
+      const res = await api.get(`/cotizaciones/por-lista/${listaSeleccionada.id}`)
+      setCotizaciones(res.data)
+      // Actualizar estado de lista
+      setListas(listas.map(l => l.id === listaSeleccionada.id ? { ...l, estado: 'cerrada' } : l))
+      setListaSeleccionada(prev => ({ ...prev, estado: 'cerrada' }))
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Error al aceptar cotización')
+    } finally {
+      setAceptando(null)
+    }
+  }
+
+  const totalCotizacion = (cot) => cot.items.reduce((acc, i) => acc + i.subtotal, 0)
+  const mejorCotizacion = cotizaciones.length > 0
+    ? cotizaciones.reduce((a, b) => totalCotizacion(a) < totalCotizacion(b) ? a : b)
+    : null
 
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
@@ -120,142 +132,183 @@ export default function Cotizaciones() {
         {/* Header */}
         <header className="flex justify-between items-center h-16 px-6 bg-white/80 backdrop-blur-md border-b border-outline-variant/30 sticky top-0 z-20">
           <h2 className="font-bold text-primary text-xl hidden md:block">Cotizaciones</h2>
-          <div className="flex items-center gap-4">
-            <button className="p-2 text-on-surface-variant hover:bg-gray-100 rounded-full relative">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
-            <div className="flex items-center gap-3 pl-4 border-l border-outline-variant/30">
-              <div className="text-right hidden sm:block">
-                <p className="font-semibold text-sm text-primary">{usuario?.nombre}</p>
-                <p className="text-xs text-on-surface-variant capitalize">{usuario?.rol}</p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center font-bold text-sm text-on-secondary-container">
-                {usuario?.nombre?.charAt(0).toUpperCase()}
-              </div>
+          <div className="flex items-center gap-3 pl-4 border-l border-outline-variant/30">
+            <div className="text-right hidden sm:block">
+              <p className="font-semibold text-sm text-primary">{usuario?.nombre}</p>
+              <p className="text-xs text-on-surface-variant capitalize">{usuario?.rol}</p>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center font-bold text-sm text-on-secondary-container">
+              {usuario?.nombre?.charAt(0).toUpperCase()}
             </div>
           </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-5 md:p-8 max-w-7xl mx-auto w-full flex flex-col md:flex-row gap-6">
+        <main className="flex-1 p-5 md:p-8 max-w-7xl mx-auto w-full">
 
-          {/* Left - Detalles lista */}
-          <section className="w-full md:w-1/3">
-            <div className="bg-white rounded-xl p-6 border border-outline-variant/30 shadow-sm sticky top-24">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-primary text-xl">Detalles de la Lista</h3>
-                <span className="bg-secondary-container text-on-secondary-container text-xs font-semibold px-3 py-1 rounded-full">
-                  Lista #{lista.numero}
-                </span>
+          {mensaje && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg flex items-center gap-3">
+              <span className="material-symbols-outlined">check_circle</span>
+              <span className="font-semibold">{mensaje}</span>
+            </div>
+          )}
+
+          {loadingListas ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : listas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <span className="material-symbols-outlined text-6xl text-outline mb-4">request_quote</span>
+              <h3 className="text-lg font-semibold text-on-surface mb-2">No hay listas publicadas</h3>
+              <p className="text-sm text-on-surface-variant mb-6">Publica una lista de compras para recibir cotizaciones.</p>
+              <button onClick={() => navigate('/listas/nueva')}
+                className="bg-primary text-white px-6 py-3 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center gap-2">
+                <span className="material-symbols-outlined">add</span>
+                Crear Lista
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col md:flex-row gap-6">
+
+              {/* Left - Selector de listas */}
+              <div className="w-full md:w-72 shrink-0">
+                <h3 className="font-bold text-primary text-lg mb-4">Mis Listas</h3>
+                <div className="flex flex-col gap-2">
+                  {listas.map(lista => (
+                    <button key={lista.id}
+                      onClick={() => seleccionarLista(lista)}
+                      className={`w-full text-left p-4 rounded-xl border transition-all
+                        ${listaSeleccionada?.id === lista.id
+                          ? 'bg-primary text-white border-primary shadow-md'
+                          : 'bg-white border-outline-variant/30 hover:border-primary/30 hover:shadow-sm'}`}>
+                      <p className={`font-semibold text-sm truncate ${listaSeleccionada?.id === lista.id ? 'text-white' : 'text-on-surface'}`}>
+                        {lista.titulo}
+                      </p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className={`text-xs ${listaSeleccionada?.id === lista.id ? 'text-green-200' : 'text-on-surface-variant'}`}>
+                          {lista.items?.length || 0} ítem(s)
+                        </p>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize
+                          ${lista.estado === 'cerrada'
+                            ? listaSeleccionada?.id === lista.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                            : listaSeleccionada?.id === lista.id ? 'bg-white/20 text-white' : 'bg-green-100 text-green-700'}`}>
+                          {lista.estado}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="space-y-4">
-                {lista.items.map((item, i) => (
-                  <div key={i} className="flex justify-between items-center pb-4 border-b border-outline-variant/30 last:border-0">
-                    <div>
-                      <p className="font-semibold text-sm text-on-surface">{item.nombre}</p>
-                      <p className="text-xs text-on-surface-variant">{item.desc}</p>
-                    </div>
-                    <p className="text-sm font-semibold text-primary bg-gray-100 px-3 py-1 rounded-md">{item.cantidad}</p>
+              {/* Right - Cotizaciones */}
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-primary text-lg">
+                    Cotizaciones para: <span className="text-on-surface">{listaSeleccionada?.titulo}</span>
+                  </h3>
+                  <span className="text-sm text-on-surface-variant">{cotizaciones.length} cotización(es)</span>
+                </div>
+
+                {loadingCotizaciones ? (
+                  <div className="flex items-center justify-center py-16">
+                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
                   </div>
-                ))}
-              </div>
+                ) : cotizaciones.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-outline-variant/30 p-12 text-center">
+                    <span className="material-symbols-outlined text-5xl text-outline mb-3 block">hourglass_empty</span>
+                    <h4 className="font-semibold text-on-surface mb-2">Esperando cotizaciones</h4>
+                    <p className="text-sm text-on-surface-variant">Los proveedores recibirán una notificación y enviarán sus ofertas pronto.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-5">
+                    {cotizaciones.map(cot => {
+                      const total = totalCotizacion(cot)
+                      const esMejor = mejorCotizacion?.id === cot.id && cot.estado !== 'rechazada'
+                      return (
+                        <article key={cot.id}
+                          className={`bg-white rounded-xl p-6 border shadow-sm relative overflow-hidden transition-all
+                            ${esMejor ? 'border-2 border-primary/40 shadow-md' : 'border-outline-variant/30'}
+                            ${cot.estado === 'rechazada' ? 'opacity-60' : ''}`}>
 
-              <div className="mt-6 bg-gray-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-on-surface-variant">Estado</span>
-                  <span className="flex items-center gap-1 text-xs font-semibold text-white bg-primary px-3 py-1 rounded-full">
-                    <span className="material-symbols-outlined text-sm">compare_arrows</span>
-                    {lista.estado}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-on-surface-variant">Entrega requerida</span>
-                  <span className="text-sm font-semibold text-on-surface">{lista.fecha_entrega}</span>
-                </div>
-              </div>
-            </div>
-          </section>
+                          {esMejor && (
+                            <div className="absolute top-0 right-0 bg-primary text-white text-xs font-semibold px-4 py-2 rounded-bl-xl flex items-center gap-1">
+                              <span className="material-symbols-outlined text-sm">star</span>
+                              Mejor Precio
+                            </div>
+                          )}
 
-          {/* Right - Cotizaciones */}
-          <section className="w-full md:w-2/3 flex flex-col gap-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-primary text-xl">Cotizaciones Recibidas</h3>
-              <span className="text-sm text-on-surface-variant">{cotizaciones.length} cotizaciones</span>
-            </div>
+                          <div className="flex justify-between items-start mb-5">
+                            <div>
+                              <h4 className="font-bold text-on-surface text-lg">{cot.proveedor_nombre}</h4>
+                              {cot.nota && (
+                                <p className="text-sm text-on-surface-variant italic mt-1">"{cot.nota}"</p>
+                              )}
+                            </div>
+                            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${estadoBadge[cot.estado]}`}>
+                              {estadoLabel[cot.estado]}
+                            </span>
+                          </div>
 
-            {cotizaciones.map(cot => (
-              <article key={cot.id}
-                className={`bg-white rounded-xl p-6 border shadow-sm relative overflow-hidden transition-all
-                  ${cot.mejor ? 'border-2 border-primary/30 shadow-md' : 'border-outline-variant/30'}
-                  ${cot.estado === 'rechazada' ? 'opacity-60' : ''}`}>
+                          {/* Tabla de items */}
+                          <div className="bg-gray-50 rounded-lg p-4 mb-5">
+                            <table className="w-full text-left text-sm">
+                              <thead>
+                                <tr className="text-on-surface-variant border-b border-outline-variant/30">
+                                  <th className="pb-2 font-semibold">Ítem</th>
+                                  <th className="pb-2 font-semibold text-right">Precio Unit.</th>
+                                  <th className="pb-2 font-semibold text-right">Cantidad</th>
+                                  <th className="pb-2 font-semibold text-right">Subtotal</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {cot.items.map((item, i) => (
+                                  <tr key={i} className="border-b border-outline-variant/10 last:border-0">
+                                    <td className="py-2">{item.insumo_nombre}</td>
+                                    <td className="py-2 text-right">${item.precio_unitario.toLocaleString('es-CL')}</td>
+                                    <td className="py-2 text-right">{item.cantidad_ofrecida}</td>
+                                    <td className="py-2 text-right font-semibold">${item.subtotal.toLocaleString('es-CL')}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
 
-                {cot.mejor && (
-                  <div className="absolute top-0 right-0 bg-primary text-white text-xs font-semibold px-4 py-2 rounded-bl-xl flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">check_circle</span>
-                    Mejor Precio
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="text-xs text-on-surface-variant">Total Estimado</p>
+                              <p className={`text-2xl font-bold ${esMejor ? 'text-primary' : 'text-on-surface'}`}>
+                                ${total.toLocaleString('es-CL')}
+                                <span className="text-sm font-normal text-on-surface-variant ml-1">CLP</span>
+                              </p>
+                            </div>
+
+                            {cot.estado === 'pendiente' && listaSeleccionada?.estado !== 'cerrada' && (
+                              <button
+                                onClick={() => handleAceptar(cot.id)}
+                                disabled={aceptando === cot.id}
+                                className="bg-primary text-white font-semibold text-sm py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-60">
+                                {aceptando === cot.id ? 'Aceptando...' : 'Aceptar Cotización'}
+                                <span className="material-symbols-outlined text-sm">check_circle</span>
+                              </button>
+                            )}
+
+                            {cot.estado === 'aceptada' && (
+                              <button disabled
+                                className="bg-gray-100 text-gray-500 font-semibold text-sm py-3 px-6 rounded-lg flex items-center gap-2 cursor-not-allowed">
+                                <span className="material-symbols-outlined text-sm">task_alt</span>
+                                Cotización Aceptada
+                              </button>
+                            )}
+                          </div>
+                        </article>
+                      )
+                    })}
                   </div>
                 )}
-
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h4 className="font-semibold text-on-surface text-lg">{cot.proveedor}</h4>
-                    <p className="text-sm text-on-surface-variant flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">location_on</span>
-                      {cot.ubicacion}
-                    </p>
-                  </div>
-                  <span className={`text-xs font-semibold px-3 py-1 rounded-full ${estadoBadge[cot.estado]}`}>
-                    {estadoLabel[cot.estado]}
-                  </span>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="text-on-surface-variant border-b border-outline-variant/30">
-                        <th className="pb-2 font-semibold">Ítem</th>
-                        <th className="pb-2 font-semibold text-right">Precio Unit.</th>
-                        <th className="pb-2 font-semibold text-right">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cot.items.map((item, i) => (
-                        <tr key={i} className="border-b border-outline-variant/10 last:border-0">
-                          <td className="py-3">{item.nombre}</td>
-                          <td className="py-3 text-right">{item.precio}</td>
-                          <td className="py-3 text-right font-semibold">{item.subtotal}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-xs text-on-surface-variant">Total Estimado</p>
-                    <p className={`text-2xl font-bold ${cot.mejor ? 'text-primary' : 'text-on-surface'}`}>
-                      {cot.total} <span className="text-sm font-normal text-on-surface-variant">CLP</span>
-                    </p>
-                  </div>
-
-                  {cot.estado === 'aceptada' && (
-                    <button disabled className="bg-gray-100 text-gray-500 font-semibold text-sm py-3 px-6 rounded-lg flex items-center gap-2 cursor-not-allowed opacity-70">
-                      <span className="material-symbols-outlined text-sm">task_alt</span>
-                      Cotización Aceptada
-                    </button>
-                  )}
-                  {cot.estado === 'pendiente' && (
-                    <button className="bg-primary text-white font-semibold text-sm py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-primary/90 transition-colors">
-                      Aceptar Cotización
-                      <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </section>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
