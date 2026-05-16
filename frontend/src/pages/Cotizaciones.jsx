@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
-import logo from '../assets/logo.png'
+import Sidebar from '../components/Sidebar'
+import Header from '../components/Header'
+import LoadingSpinner from '../components/LoadingSpinner'
+import EmptyState from '../components/EmptyState'
 
 const estadoBadge = {
   aceptada: 'bg-green-100 text-green-800',
@@ -17,7 +19,6 @@ const estadoLabel = {
 }
 
 export default function Cotizaciones() {
-  const { usuario, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const listaId = location.state?.lista_id
@@ -34,27 +35,9 @@ export default function Cotizaciones() {
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
     { icon: 'shopping_cart', label: 'Mis Listas', path: '/listas' },
     { icon: 'request_quote', label: 'Cotizaciones', path: '/cotizaciones', active: true },
+    { icon: 'psychology', label: 'Análisis IA', path: '/ia' },
     { icon: 'history', label: 'Pedidos', path: '/pedidos' },
-    { icon: 'settings', label: 'Configuración', path: '/configuracion' },
   ]
-
-  // Cargar listas publicadas
-  useEffect(() => {
-    api.get('/listas/')
-      .then(res => {
-        const publicadas = res.data.filter(l => l.estado === 'publicada' || l.estado === 'cerrada')
-        setListas(publicadas)
-        // Si viene con lista_id desde navegación, seleccionarla
-        if (listaId) {
-          const lista = publicadas.find(l => l.id === listaId)
-          if (lista) seleccionarLista(lista)
-        } else if (publicadas.length > 0) {
-          seleccionarLista(publicadas[0])
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingListas(false))
-  }, [])
 
   const seleccionarLista = (lista) => {
     setListaSeleccionada(lista)
@@ -66,16 +49,33 @@ export default function Cotizaciones() {
       .finally(() => setLoadingCotizaciones(false))
   }
 
+  useEffect(() => {
+    api.get('/listas/')
+      .then(res => {
+        const publicadas = res.data.filter(l =>
+          l.estado === 'publicada' || l.estado === 'cerrada'
+        )
+        setListas(publicadas)
+        if (listaId) {
+          const lista = publicadas.find(l => l.id === listaId)
+          if (lista) seleccionarLista(lista)
+          else if (publicadas.length > 0) seleccionarLista(publicadas[0])
+        } else if (publicadas.length > 0) {
+          seleccionarLista(publicadas[0])
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingListas(false))
+  }, [])
+
   const handleAceptar = async (cotizacionId) => {
     if (!confirm('¿Aceptar esta cotización? Las demás serán rechazadas automáticamente.')) return
     setAceptando(cotizacionId)
     try {
       await api.put(`/cotizaciones/${cotizacionId}/aceptar`)
       setMensaje('✅ ¡Cotización aceptada! La lista ha sido cerrada.')
-      // Recargar cotizaciones
       const res = await api.get(`/cotizaciones/por-lista/${listaSeleccionada.id}`)
       setCotizaciones(res.data)
-      // Actualizar estado de lista
       setListas(listas.map(l => l.id === listaSeleccionada.id ? { ...l, estado: 'cerrada' } : l))
       setListaSeleccionada(prev => ({ ...prev, estado: 'cerrada' }))
     } catch (err) {
@@ -92,58 +92,9 @@ export default function Cotizaciones() {
 
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
-
-      {/* Sidebar */}
-      <aside className="hidden md:flex flex-col p-6 h-screen w-64 fixed left-0 top-0 bg-white border-r border-outline-variant/30 z-30">
-        <div className="mb-8 flex items-center gap-3">
-          <img src={logo} alt="CultivaTech" className="h-10 w-10 object-contain rounded-lg" />
-          <div>
-            <h1 className="font-bold text-primary text-base">CultivaTech</h1>
-            <p className="text-xs text-on-surface-variant">Gestión Agrícola</p>
-          </div>
-        </div>
-        <button onClick={() => navigate('/listas/nueva')}
-          className="w-full py-3 px-4 bg-primary text-white rounded-lg font-semibold text-sm mb-6 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-          <span className="material-symbols-outlined">add</span>
-          Nueva Lista
-        </button>
-        <nav className="flex-1 space-y-1">
-          {navItems.map(item => (
-            <a key={item.label} onClick={() => navigate(item.path)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm cursor-pointer transition-all
-                ${item.active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-gray-100'}`}>
-              <span className="material-symbols-outlined">{item.icon}</span>
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <div className="mt-auto pt-6 border-t border-outline-variant/30">
-          <a onClick={() => { logout(); navigate('/login') }}
-            className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
-            <span className="material-symbols-outlined">logout</span>
-            Cerrar sesión
-          </a>
-        </div>
-      </aside>
-
-      {/* Main */}
+      <Sidebar navItems={navItems} tipo="agricultor" />
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
-
-        {/* Header */}
-        <header className="flex justify-between items-center h-16 px-6 bg-white/80 backdrop-blur-md border-b border-outline-variant/30 sticky top-0 z-20">
-          <h2 className="font-bold text-primary text-xl hidden md:block">Cotizaciones</h2>
-          <div className="flex items-center gap-3 pl-4 border-l border-outline-variant/30">
-            <div className="text-right hidden sm:block">
-              <p className="font-semibold text-sm text-primary">{usuario?.nombre}</p>
-              <p className="text-xs text-on-surface-variant capitalize">{usuario?.rol}</p>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center font-bold text-sm text-on-secondary-container">
-              {usuario?.nombre?.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </header>
-
-        {/* Content */}
+        <Header titulo="Cotizaciones" />
         <main className="flex-1 p-5 md:p-8 max-w-7xl mx-auto w-full">
 
           {mensaje && (
@@ -154,30 +105,24 @@ export default function Cotizaciones() {
           )}
 
           {loadingListas ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-            </div>
+            <LoadingSpinner texto="Cargando cotizaciones..." />
           ) : listas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <span className="material-symbols-outlined text-6xl text-outline mb-4">request_quote</span>
-              <h3 className="text-lg font-semibold text-on-surface mb-2">No hay listas publicadas</h3>
-              <p className="text-sm text-on-surface-variant mb-6">Publica una lista de compras para recibir cotizaciones.</p>
-              <button onClick={() => navigate('/listas/nueva')}
-                className="bg-primary text-white px-6 py-3 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors flex items-center gap-2">
-                <span className="material-symbols-outlined">add</span>
-                Crear Lista
-              </button>
-            </div>
+            <EmptyState
+              icon="request_quote"
+              titulo="No hay listas publicadas"
+              descripcion="Publica una lista de compras para empezar a recibir cotizaciones de proveedores."
+              accion="Crear Lista"
+              onAccion={() => navigate('/listas/nueva')}
+            />
           ) : (
             <div className="flex flex-col md:flex-row gap-6">
 
-              {/* Left - Selector de listas */}
+              {/* Selector de listas */}
               <div className="w-full md:w-72 shrink-0">
                 <h3 className="font-bold text-primary text-lg mb-4">Mis Listas</h3>
                 <div className="flex flex-col gap-2">
                   {listas.map(lista => (
-                    <button key={lista.id}
-                      onClick={() => seleccionarLista(lista)}
+                    <button key={lista.id} onClick={() => seleccionarLista(lista)}
                       className={`w-full text-left p-4 rounded-xl border transition-all
                         ${listaSeleccionada?.id === lista.id
                           ? 'bg-primary text-white border-primary shadow-md'
@@ -190,9 +135,9 @@ export default function Cotizaciones() {
                           {lista.items?.length || 0} ítem(s)
                         </p>
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize
-                          ${lista.estado === 'cerrada'
-                            ? listaSeleccionada?.id === lista.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
-                            : listaSeleccionada?.id === lista.id ? 'bg-white/20 text-white' : 'bg-green-100 text-green-700'}`}>
+                          ${listaSeleccionada?.id === lista.id
+                            ? 'bg-white/20 text-white'
+                            : lista.estado === 'cerrada' ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}`}>
                           {lista.estado}
                         </span>
                       </div>
@@ -201,19 +146,17 @@ export default function Cotizaciones() {
                 </div>
               </div>
 
-              {/* Right - Cotizaciones */}
+              {/* Panel cotizaciones */}
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-primary text-lg">
-                    Cotizaciones para: <span className="text-on-surface">{listaSeleccionada?.titulo}</span>
+                    Cotizaciones: <span className="text-on-surface">{listaSeleccionada?.titulo}</span>
                   </h3>
                   <span className="text-sm text-on-surface-variant">{cotizaciones.length} cotización(es)</span>
                 </div>
 
                 {loadingCotizaciones ? (
-                  <div className="flex items-center justify-center py-16">
-                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                  </div>
+                  <LoadingSpinner texto="Cargando cotizaciones..." />
                 ) : cotizaciones.length === 0 ? (
                   <div className="bg-white rounded-xl border border-outline-variant/30 p-12 text-center">
                     <span className="material-symbols-outlined text-5xl text-outline mb-3 block">hourglass_empty</span>
@@ -241,16 +184,13 @@ export default function Cotizaciones() {
                           <div className="flex justify-between items-start mb-5">
                             <div>
                               <h4 className="font-bold text-on-surface text-lg">{cot.proveedor_nombre}</h4>
-                              {cot.nota && (
-                                <p className="text-sm text-on-surface-variant italic mt-1">"{cot.nota}"</p>
-                              )}
+                              {cot.nota && <p className="text-sm text-on-surface-variant italic mt-1">"{cot.nota}"</p>}
                             </div>
                             <span className={`text-xs font-semibold px-3 py-1 rounded-full ${estadoBadge[cot.estado]}`}>
                               {estadoLabel[cot.estado]}
                             </span>
                           </div>
 
-                          {/* Tabla de items */}
                           <div className="bg-gray-50 rounded-lg p-4 mb-5">
                             <table className="w-full text-left text-sm">
                               <thead>
@@ -284,8 +224,7 @@ export default function Cotizaciones() {
                             </div>
 
                             {cot.estado === 'pendiente' && listaSeleccionada?.estado !== 'cerrada' && (
-                              <button
-                                onClick={() => handleAceptar(cot.id)}
+                              <button onClick={() => handleAceptar(cot.id)}
                                 disabled={aceptando === cot.id}
                                 className="bg-primary text-white font-semibold text-sm py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-60">
                                 {aceptando === cot.id ? 'Aceptando...' : 'Aceptar Cotización'}
@@ -297,7 +236,7 @@ export default function Cotizaciones() {
                               <button disabled
                                 className="bg-gray-100 text-gray-500 font-semibold text-sm py-3 px-6 rounded-lg flex items-center gap-2 cursor-not-allowed">
                                 <span className="material-symbols-outlined text-sm">task_alt</span>
-                                Cotización Aceptada
+                                Aceptada
                               </button>
                             )}
                           </div>
