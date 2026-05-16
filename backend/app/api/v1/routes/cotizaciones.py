@@ -155,7 +155,6 @@ def crear_cotizacion(
 ):
     proveedor = get_proveedor(db, current_user)
 
-    # Validar lista
     lista = db.query(ListaCompra).filter(
         ListaCompra.id == data.lista_id
     ).first()
@@ -172,7 +171,6 @@ def crear_cotizacion(
             detail="Solo se puede cotizar listas publicadas"
         )
 
-    # Validar cotización duplicada
     existente = db.query(Cotizacion).filter(
         Cotizacion.lista_id == data.lista_id,
         Cotizacion.proveedor_id == proveedor.id
@@ -184,14 +182,12 @@ def crear_cotizacion(
             detail="Ya enviaste una cotización para esta lista"
         )
 
-    # Validar items
     if not data.items or len(data.items) == 0:
         raise HTTPException(
             status_code=400,
             detail="Debes cotizar al menos un ítem"
         )
 
-    # Obtener items válidos de la lista
     items_lista_validos = {
         item.id: item
         for item in db.query(ItemLista).filter(
@@ -205,7 +201,6 @@ def crear_cotizacion(
             detail="La lista no tiene ítems"
         )
 
-    # Validar items repetidos
     ids_recibidos = [
         item.item_lista_id
         for item in data.items
@@ -217,31 +212,26 @@ def crear_cotizacion(
             detail="No puedes repetir ítems en la cotización"
         )
 
-    # Validar cada item
     for item_data in data.items:
 
-        # Validar pertenencia a la lista
         if item_data.item_lista_id not in items_lista_validos:
             raise HTTPException(
                 status_code=400,
                 detail=f"El ítem {item_data.item_lista_id} no pertenece a esta lista"
             )
 
-        # Validar precio
         if item_data.precio_unitario <= 0:
             raise HTTPException(
                 status_code=400,
                 detail=f"El precio del ítem {item_data.item_lista_id} debe ser mayor a 0"
             )
 
-        # Validar cantidad
         if item_data.cantidad_ofrecida <= 0:
             raise HTTPException(
                 status_code=400,
                 detail=f"La cantidad del ítem {item_data.item_lista_id} debe ser mayor a 0"
             )
 
-    # Crear cotización
     try:
         cotizacion = Cotizacion(
             lista_id=data.lista_id,
@@ -321,6 +311,60 @@ def mis_cotizaciones_proveedor(
             "nota": c.nota,
             "creado_en": c.creado_en,
             "items_count": len(c.items)
+        })
+
+    return resultado
+
+
+# ─────────────────────────────────────────────────────────────
+# HISTORIAL PEDIDOS
+# IMPORTANTE:
+# ESTE ENDPOINT DEBE IR ANTES DE LAS RUTAS
+# QUE USAN {cotizacion_id}
+# ─────────────────────────────────────────────────────────────
+
+@router.get("/cotizaciones/pedidos/historial", tags=["Pedidos"])
+def historial_pedidos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+
+    listas = db.query(ListaCompra).filter(
+        ListaCompra.agricultor_id == agricultor.id,
+        ListaCompra.estado == "cerrada"
+    ).order_by(ListaCompra.creado_en.desc()).all()
+
+    resultado = []
+
+    for lista in listas:
+        cotizacion = db.query(Cotizacion).filter(
+            Cotizacion.lista_id == lista.id,
+            Cotizacion.estado == "aceptada"
+        ).first()
+
+        if not cotizacion:
+            continue
+
+        proveedor = db.query(Proveedor).filter(
+            Proveedor.id == cotizacion.proveedor_id
+        ).first()
+
+        total = sum(
+            float(i.subtotal or 0)
+            for i in cotizacion.items
+        )
+
+        resultado.append({
+            "id": f"#ORD-{lista.id:04d}",
+            "lista_id": lista.id,
+            "cotizacion_id": cotizacion.id,
+            "fecha": lista.creado_en,
+            "titulo": lista.titulo,
+            "proveedor": proveedor.nombre_empresa if proveedor else "Desconocido",
+            "total": total,
+            "estado": lista.estado,
+            "items_count": len(lista.items)
         })
 
     return resultado
@@ -461,54 +505,3 @@ def aceptar_cotizacion(
     return {
         "message": "Cotización aceptada exitosamente"
     }
-
-
-# ─────────────────────────────────────────────────────────────
-# HISTORIAL PEDIDOS
-# ─────────────────────────────────────────────────────────────
-
-@router.get("/pedidos/historial", tags=["Pedidos"])
-def historial_pedidos(
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_rol("agricultor"))
-):
-    agricultor = get_agricultor(db, current_user)
-
-    listas = db.query(ListaCompra).filter(
-        ListaCompra.agricultor_id == agricultor.id,
-        ListaCompra.estado == "cerrada"
-    ).order_by(ListaCompra.creado_en.desc()).all()
-
-    resultado = []
-
-    for lista in listas:
-        cotizacion = db.query(Cotizacion).filter(
-            Cotizacion.lista_id == lista.id,
-            Cotizacion.estado == "aceptada"
-        ).first()
-
-        if not cotizacion:
-            continue
-
-        proveedor = db.query(Proveedor).filter(
-            Proveedor.id == cotizacion.proveedor_id
-        ).first()
-
-        total = sum(
-            float(i.subtotal or 0)
-            for i in cotizacion.items
-        )
-
-        resultado.append({
-            "id": f"#ORD-{lista.id:04d}",
-            "lista_id": lista.id,
-            "cotizacion_id": cotizacion.id,
-            "fecha": lista.creado_en,
-            "titulo": lista.titulo,
-            "proveedor": proveedor.nombre_empresa if proveedor else "Desconocido",
-            "total": total,
-            "estado": lista.estado,
-            "items_count": len(lista.items)
-        })
-
-    return resultado
