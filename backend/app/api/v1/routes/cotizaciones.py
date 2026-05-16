@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from typing import List
+
 from app.db.database import get_db
 from app.models.cotizacion import Cotizacion, ItemCotizacion
 from app.models.lista_compra import ListaCompra, ItemLista
@@ -14,19 +16,42 @@ from app.models.usuario import Usuario
 
 router = APIRouter(tags=["Cotizaciones"])
 
+
+# ─────────────────────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────────────────────
+
 def get_proveedor(db, usuario):
-    p = db.query(Proveedor).filter(Proveedor.usuario_id == usuario.id).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="Perfil de proveedor no encontrado")
-    return p
+    proveedor = db.query(Proveedor).filter(
+        Proveedor.usuario_id == usuario.id
+    ).first()
+
+    if not proveedor:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil de proveedor no encontrado"
+        )
+
+    return proveedor
+
 
 def get_agricultor(db, usuario):
-    a = db.query(Agricultor).filter(Agricultor.usuario_id == usuario.id).first()
-    if not a:
-        raise HTTPException(status_code=404, detail="Perfil de agricultor no encontrado")
-    return a
+    agricultor = db.query(Agricultor).filter(
+        Agricultor.usuario_id == usuario.id
+    ).first()
 
-# ─── ALERTAS ────────────────────────────────────────────────
+    if not agricultor:
+        raise HTTPException(
+            status_code=404,
+            detail="Perfil de agricultor no encontrado"
+        )
+
+    return agricultor
+
+
+# ─────────────────────────────────────────────────────────────
+# ALERTAS
+# ─────────────────────────────────────────────────────────────
 
 @router.get("/alertas/", tags=["Alertas"])
 def mis_alertas(
@@ -34,21 +59,34 @@ def mis_alertas(
     current_user: Usuario = Depends(require_rol("proveedor"))
 ):
     proveedor = get_proveedor(db, current_user)
+
     alertas = db.query(Alerta).filter(
         Alerta.proveedor_id == proveedor.id
     ).order_by(Alerta.creado_en.desc()).all()
 
     resultado = []
+
     for alerta in alertas:
-        lista = db.query(ListaCompra).filter(ListaCompra.id == alerta.lista_id).first()
+        lista = db.query(ListaCompra).filter(
+            ListaCompra.id == alerta.lista_id
+        ).first()
+
         if not lista:
             continue
-        agricultor = db.query(Agricultor).filter(Agricultor.id == lista.agricultor_id).first()
+
+        agricultor = db.query(Agricultor).filter(
+            Agricultor.id == lista.agricultor_id
+        ).first()
+
         usuario_agr = agricultor.usuario if agricultor else None
 
         items = []
+
         for item in lista.items:
-            insumo = db.query(Insumo).filter(Insumo.id == item.insumo_id).first()
+            insumo = db.query(Insumo).filter(
+                Insumo.id == item.insumo_id
+            ).first()
+
             items.append({
                 "id": item.id,
                 "insumo_nombre": insumo.nombre if insumo else "",
@@ -69,7 +107,9 @@ def mis_alertas(
             "agricultor_region": agricultor.region if agricultor else "",
             "items": items
         })
+
     return resultado
+
 
 @router.put("/alertas/{alerta_id}/leer", tags=["Alertas"])
 def marcar_leida(
@@ -78,19 +118,36 @@ def marcar_leida(
     current_user: Usuario = Depends(require_rol("proveedor"))
 ):
     proveedor = get_proveedor(db, current_user)
+
     alerta = db.query(Alerta).filter(
         Alerta.id == alerta_id,
         Alerta.proveedor_id == proveedor.id
     ).first()
+
     if not alerta:
-        raise HTTPException(status_code=404, detail="Alerta no encontrada")
+        raise HTTPException(
+            status_code=404,
+            detail="Alerta no encontrada"
+        )
+
     alerta.leida = True
+
     db.commit()
-    return {"message": "Alerta marcada como leída"}
 
-# ─── COTIZACIONES ────────────────────────────────────────────
+    return {
+        "message": "Alerta marcada como leída"
+    }
 
-@router.post("/cotizaciones/", response_model=CotizacionResponse, tags=["Cotizaciones"])
+
+# ─────────────────────────────────────────────────────────────
+# CREAR COTIZACIÓN
+# ─────────────────────────────────────────────────────────────
+
+@router.post(
+    "/cotizaciones/",
+    response_model=CotizacionResponse,
+    tags=["Cotizaciones"]
+)
 def crear_cotizacion(
     data: CotizacionCreate,
     db: Session = Depends(get_db),
@@ -98,60 +155,164 @@ def crear_cotizacion(
 ):
     proveedor = get_proveedor(db, current_user)
 
-    lista = db.query(ListaCompra).filter(ListaCompra.id == data.lista_id).first()
-    if not lista:
-        raise HTTPException(status_code=404, detail="Lista no encontrada")
-    if lista.estado != "publicada":
-        raise HTTPException(status_code=400, detail="Solo se puede cotizar listas publicadas")
+    # Validar lista
+    lista = db.query(ListaCompra).filter(
+        ListaCompra.id == data.lista_id
+    ).first()
 
+    if not lista:
+        raise HTTPException(
+            status_code=404,
+            detail="Lista no encontrada"
+        )
+
+    if lista.estado != "publicada":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede cotizar listas publicadas"
+        )
+
+    # Validar cotización duplicada
     existente = db.query(Cotizacion).filter(
         Cotizacion.lista_id == data.lista_id,
         Cotizacion.proveedor_id == proveedor.id
     ).first()
+
     if existente:
-        raise HTTPException(status_code=400, detail="Ya enviaste una cotización para esta lista")
-
-    cotizacion = Cotizacion(
-        lista_id=data.lista_id,
-        proveedor_id=proveedor.id,
-        estado="pendiente",
-        nota=data.nota
-    )
-    db.add(cotizacion)
-    db.flush()
-
-    for item_data in data.items:
-        item_lista = db.query(ItemLista).filter(ItemLista.id == item_data.item_lista_id).first()
-        if not item_lista:
-            continue
-        subtotal = item_data.precio_unitario * item_data.cantidad_ofrecida
-        item = ItemCotizacion(
-            cotizacion_id=cotizacion.id,
-            item_lista_id=item_data.item_lista_id,
-            precio_unitario=item_data.precio_unitario,
-            cantidad_ofrecida=item_data.cantidad_ofrecida,
-            subtotal=subtotal
+        raise HTTPException(
+            status_code=400,
+            detail="Ya enviaste una cotización para esta lista"
         )
-        db.add(item)
 
-    db.commit()
-    db.refresh(cotizacion)
-    return cotizacion
+    # Validar items
+    if not data.items or len(data.items) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Debes cotizar al menos un ítem"
+        )
 
-@router.get("/cotizaciones/mis-cotizaciones/", tags=["Cotizaciones"])
+    # Obtener items válidos de la lista
+    items_lista_validos = {
+        item.id: item
+        for item in db.query(ItemLista).filter(
+            ItemLista.lista_id == data.lista_id
+        ).all()
+    }
+
+    if not items_lista_validos:
+        raise HTTPException(
+            status_code=400,
+            detail="La lista no tiene ítems"
+        )
+
+    # Validar items repetidos
+    ids_recibidos = [
+        item.item_lista_id
+        for item in data.items
+    ]
+
+    if len(ids_recibidos) != len(set(ids_recibidos)):
+        raise HTTPException(
+            status_code=400,
+            detail="No puedes repetir ítems en la cotización"
+        )
+
+    # Validar cada item
+    for item_data in data.items:
+
+        # Validar pertenencia a la lista
+        if item_data.item_lista_id not in items_lista_validos:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El ítem {item_data.item_lista_id} no pertenece a esta lista"
+            )
+
+        # Validar precio
+        if item_data.precio_unitario <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El precio del ítem {item_data.item_lista_id} debe ser mayor a 0"
+            )
+
+        # Validar cantidad
+        if item_data.cantidad_ofrecida <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La cantidad del ítem {item_data.item_lista_id} debe ser mayor a 0"
+            )
+
+    # Crear cotización
+    try:
+        cotizacion = Cotizacion(
+            lista_id=data.lista_id,
+            proveedor_id=proveedor.id,
+            estado="pendiente",
+            nota=data.nota
+        )
+
+        db.add(cotizacion)
+        db.flush()
+
+        for item_data in data.items:
+            subtotal = (
+                item_data.precio_unitario *
+                item_data.cantidad_ofrecida
+            )
+
+            item = ItemCotizacion(
+                cotizacion_id=cotizacion.id,
+                item_lista_id=item_data.item_lista_id,
+                precio_unitario=item_data.precio_unitario,
+                cantidad_ofrecida=item_data.cantidad_ofrecida,
+                subtotal=subtotal
+            )
+
+            db.add(item)
+
+        db.commit()
+        db.refresh(cotizacion)
+
+        return cotizacion
+
+    except SQLAlchemyError:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno al crear la cotización"
+        )
+
+
+# ─────────────────────────────────────────────────────────────
+# MIS COTIZACIONES (PROVEEDOR)
+# ─────────────────────────────────────────────────────────────
+
+@router.get(
+    "/cotizaciones/mis-cotizaciones/",
+    tags=["Cotizaciones"]
+)
 def mis_cotizaciones_proveedor(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_rol("proveedor"))
 ):
     proveedor = get_proveedor(db, current_user)
+
     cotizaciones = db.query(Cotizacion).filter(
         Cotizacion.proveedor_id == proveedor.id
     ).order_by(Cotizacion.creado_en.desc()).all()
 
     resultado = []
+
     for c in cotizaciones:
-        lista = db.query(ListaCompra).filter(ListaCompra.id == c.lista_id).first()
-        total = sum(float(i.subtotal or 0) for i in c.items)
+        lista = db.query(ListaCompra).filter(
+            ListaCompra.id == c.lista_id
+        ).first()
+
+        total = sum(
+            float(i.subtotal or 0)
+            for i in c.items
+        )
+
         resultado.append({
             "id": c.id,
             "lista_titulo": lista.titulo if lista else "",
@@ -161,34 +322,66 @@ def mis_cotizaciones_proveedor(
             "creado_en": c.creado_en,
             "items_count": len(c.items)
         })
+
     return resultado
 
-@router.get("/cotizaciones/por-lista/{lista_id}", tags=["Cotizaciones"])
+
+# ─────────────────────────────────────────────────────────────
+# COTIZACIONES POR LISTA
+# ─────────────────────────────────────────────────────────────
+
+@router.get(
+    "/cotizaciones/por-lista/{lista_id}",
+    tags=["Cotizaciones"]
+)
 def cotizaciones_por_lista(
     lista_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_rol("agricultor"))
 ):
     agricultor = get_agricultor(db, current_user)
+
     lista = db.query(ListaCompra).filter(
         ListaCompra.id == lista_id,
         ListaCompra.agricultor_id == agricultor.id
     ).first()
+
     if not lista:
-        raise HTTPException(status_code=404, detail="Lista no encontrada")
+        raise HTTPException(
+            status_code=404,
+            detail="Lista no encontrada"
+        )
 
     cotizaciones = db.query(Cotizacion).filter(
         Cotizacion.lista_id == lista_id
     ).all()
 
     resultado = []
+
     for c in cotizaciones:
-        proveedor = db.query(Proveedor).filter(Proveedor.id == c.proveedor_id).first()
-        total = sum(float(i.subtotal or 0) for i in c.items)
+        proveedor = db.query(Proveedor).filter(
+            Proveedor.id == c.proveedor_id
+        ).first()
+
+        total = sum(
+            float(i.subtotal or 0)
+            for i in c.items
+        )
+
         items = []
+
         for i in c.items:
-            item_lista = db.query(ItemLista).filter(ItemLista.id == i.item_lista_id).first()
-            insumo = db.query(Insumo).filter(Insumo.id == item_lista.insumo_id).first() if item_lista else None
+            item_lista = db.query(ItemLista).filter(
+                ItemLista.id == i.item_lista_id
+            ).first()
+
+            insumo = None
+
+            if item_lista:
+                insumo = db.query(Insumo).filter(
+                    Insumo.id == item_lista.insumo_id
+                ).first()
+
             items.append({
                 "id": i.id,
                 "insumo_nombre": insumo.nombre if insumo else "",
@@ -196,6 +389,7 @@ def cotizaciones_por_lista(
                 "cantidad_ofrecida": float(i.cantidad_ofrecida),
                 "subtotal": float(i.subtotal or 0)
             })
+
         resultado.append({
             "id": c.id,
             "proveedor_nombre": proveedor.nombre_empresa if proveedor else "",
@@ -205,32 +399,116 @@ def cotizaciones_por_lista(
             "creado_en": c.creado_en,
             "items": items
         })
+
     return resultado
 
-@router.put("/cotizaciones/{cotizacion_id}/aceptar", tags=["Cotizaciones"])
+
+# ─────────────────────────────────────────────────────────────
+# ACEPTAR COTIZACIÓN
+# ─────────────────────────────────────────────────────────────
+
+@router.put(
+    "/cotizaciones/{cotizacion_id}/aceptar",
+    tags=["Cotizaciones"]
+)
 def aceptar_cotizacion(
     cotizacion_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_rol("agricultor"))
 ):
     agricultor = get_agricultor(db, current_user)
-    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+
+    cotizacion = db.query(Cotizacion).filter(
+        Cotizacion.id == cotizacion_id
+    ).first()
+
     if not cotizacion:
-        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+        raise HTTPException(
+            status_code=404,
+            detail="Cotización no encontrada"
+        )
+
+    if cotizacion.estado != "pendiente":
+        raise HTTPException(
+            status_code=400,
+            detail="La cotización ya fue procesada"
+        )
 
     lista = db.query(ListaCompra).filter(
         ListaCompra.id == cotizacion.lista_id,
         ListaCompra.agricultor_id == agricultor.id
     ).first()
+
     if not lista:
-        raise HTTPException(status_code=403, detail="No autorizado")
+        raise HTTPException(
+            status_code=403,
+            detail="No autorizado"
+        )
 
     cotizacion.estado = "aceptada"
+
     db.query(Cotizacion).filter(
         Cotizacion.lista_id == cotizacion.lista_id,
         Cotizacion.id != cotizacion_id
-    ).update({"estado": "rechazada"})
+    ).update({
+        "estado": "rechazada"
+    })
 
     lista.estado = "cerrada"
+
     db.commit()
-    return {"message": "Cotización aceptada exitosamente"}
+
+    return {
+        "message": "Cotización aceptada exitosamente"
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# HISTORIAL PEDIDOS
+# ─────────────────────────────────────────────────────────────
+
+@router.get("/pedidos/historial", tags=["Pedidos"])
+def historial_pedidos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+
+    listas = db.query(ListaCompra).filter(
+        ListaCompra.agricultor_id == agricultor.id,
+        ListaCompra.estado == "cerrada"
+    ).order_by(ListaCompra.creado_en.desc()).all()
+
+    resultado = []
+
+    for lista in listas:
+        cotizacion = db.query(Cotizacion).filter(
+            Cotizacion.lista_id == lista.id,
+            Cotizacion.estado == "aceptada"
+        ).first()
+
+        if not cotizacion:
+            continue
+
+        proveedor = db.query(Proveedor).filter(
+            Proveedor.id == cotizacion.proveedor_id
+        ).first()
+
+        total = sum(
+            float(i.subtotal or 0)
+            for i in cotizacion.items
+        )
+
+        resultado.append({
+            "id": f"#ORD-{lista.id:04d}",
+            "lista_id": lista.id,
+            "cotizacion_id": cotizacion.id,
+            "fecha": lista.creado_en,
+            "titulo": lista.titulo,
+            "proveedor": proveedor.nombre_empresa if proveedor else "Desconocido",
+            "total": total,
+            "estado": lista.estado,
+            "items_count": len(lista.items)
+        })
+
+    return resultado
