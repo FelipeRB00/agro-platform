@@ -60,6 +60,58 @@ def mis_listas(
         ListaCompra.agricultor_id == agricultor.id
     ).order_by(ListaCompra.creado_en.desc()).all()
 
+@router.get("/resumen")
+def resumen_agricultor(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+
+    from app.models.cotizacion import Cotizacion
+    from sqlalchemy import func
+
+    # Listas
+    total_listas = db.query(ListaCompra).filter(
+        ListaCompra.agricultor_id == agricultor.id
+    ).count()
+
+    listas_publicadas = db.query(ListaCompra).filter(
+        ListaCompra.agricultor_id == agricultor.id,
+        ListaCompra.estado == "publicada"
+    ).count()
+
+    # Cotizaciones pendientes
+    listas_ids = [l.id for l in db.query(ListaCompra).filter(
+        ListaCompra.agricultor_id == agricultor.id
+    ).all()]
+
+    cotizaciones_pendientes = db.query(Cotizacion).filter(
+        Cotizacion.lista_id.in_(listas_ids),
+        Cotizacion.estado == "pendiente"
+    ).count() if listas_ids else 0
+
+    # Actividad reciente
+    listas_recientes = db.query(ListaCompra).filter(
+        ListaCompra.agricultor_id == agricultor.id
+    ).order_by(ListaCompra.creado_en.desc()).limit(5).all()
+
+    actividad = []
+    for lista in listas_recientes:
+        actividad.append({
+            "tipo": "lista",
+            "titulo": lista.titulo,
+            "estado": lista.estado,
+            "fecha": lista.creado_en,
+            "items": len(lista.items)
+        })
+
+    return {
+        "total_listas": total_listas,
+        "listas_activas": listas_publicadas,
+        "cotizaciones_pendientes": cotizaciones_pendientes,
+        "actividad_reciente": actividad
+    }
+
 @router.get("/{lista_id}", response_model=ListaCompraResponse)
 def detalle_lista(
     lista_id: int,

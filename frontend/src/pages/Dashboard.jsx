@@ -1,37 +1,75 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import api from '../services/api'
 import logo from '../assets/logo.png'
+
+const estadoBadge = {
+  borrador: 'bg-yellow-100 text-yellow-700',
+  publicada: 'bg-green-100 text-green-700',
+  cerrada: 'bg-gray-100 text-gray-600',
+}
+
+const estadoIcon = {
+  borrador: 'edit_note',
+  publicada: 'send',
+  cerrada: 'task_alt',
+}
 
 export default function Dashboard() {
   const { usuario, logout } = useAuth()
   const navigate = useNavigate()
-
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
-
-  const cards = [
-    { icon: 'payments', label: 'Gasto total del mes', value: '$45,230', badge: '↑ 12%', color: 'bg-secondary-container/50 text-secondary' },
-    { icon: 'list_alt', label: 'Listas de compras activas', value: '8', color: 'bg-[#b7d6a8]/20 text-secondary' },
-    { icon: 'pending_actions', label: 'Cotizaciones pendientes', value: '3', color: 'bg-[#b7d6a8]/20 text-secondary', alert: true },
-    { icon: 'notifications_active', label: 'Alertas de precios', value: '5', color: 'bg-red-100 text-red-600' },
-  ]
-
-  const actividad = [
-    { icon: 'mark_email_unread', color: 'bg-secondary-container text-secondary', titulo: 'Nueva cotización recibida', desc: 'Proveedor: AgroInsumos SA.', tiempo: 'Hace 2 horas' },
-    { icon: 'check_circle', color: 'bg-[#b7d6a8]/30 text-[#2f4f2f]', titulo: 'Lista de fertilizantes pagada', desc: 'Transacción aprobada ($12,400)', tiempo: 'Ayer' },
-    { icon: 'warning', color: 'bg-red-100 text-red-600', titulo: 'Alerta de precio: Urea', desc: 'El precio superó el umbral configurado.', tiempo: 'Ayer' },
-    { icon: 'inventory', color: 'bg-gray-100 text-gray-600', titulo: 'Inventario actualizado', desc: 'Semillas de maíz ingresadas.', tiempo: 'Hace 2 días' },
-  ]
+  const [resumen, setResumen] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard', active: true },
-    { icon: 'shopping_cart', label: 'Compras', path: '/compras' },
+    { icon: 'shopping_cart', label: 'Mis Listas', path: '/listas' },
     { icon: 'request_quote', label: 'Cotizaciones', path: '/cotizaciones' },
-    { icon: 'list_alt', label: 'Mis Listas', path: '/listas' },
+    { icon: 'psychology', label: 'Análisis IA', path: '/ia' },
+    { icon: 'history', label: 'Pedidos', path: '/pedidos' },
     { icon: 'settings', label: 'Configuración', path: '/configuracion' },
   ]
+
+  useEffect(() => {
+    api.get('/listas/resumen')
+      .then(res => setResumen(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const cards = resumen ? [
+    {
+      icon: 'list_alt',
+      label: 'Total de Listas',
+      value: resumen.total_listas,
+      color: 'bg-secondary-container text-on-secondary-container',
+      action: () => navigate('/listas')
+    },
+    {
+      icon: 'send',
+      label: 'Listas Publicadas',
+      value: resumen.listas_activas,
+      color: 'bg-green-100 text-green-700',
+      action: () => navigate('/listas')
+    },
+    {
+      icon: 'pending_actions',
+      label: 'Cotizaciones Pendientes',
+      value: resumen.cotizaciones_pendientes,
+      color: resumen.cotizaciones_pendientes > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600',
+      action: () => navigate('/cotizaciones'),
+      alert: resumen.cotizaciones_pendientes > 0
+    },
+    {
+      icon: 'psychology',
+      label: 'Análisis IA',
+      value: '→',
+      color: 'bg-primary-container text-white',
+      dark: true,
+      action: () => navigate('/ia')
+    },
+  ] : []
 
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
@@ -46,17 +84,15 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <button
-          onClick={() => navigate('/listas/nueva')}
+        <button onClick={() => navigate('/listas/nueva')}
           className="w-full py-3 px-4 bg-primary text-white rounded-lg font-semibold text-sm mb-6 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
           <span className="material-symbols-outlined">add</span>
           Nueva Lista
         </button>
 
         <nav className="flex-1 space-y-1">
-          {navItems.map((item) => (
-            <a key={item.label}
-              onClick={() => navigate(item.path)}
+          {navItems.map(item => (
+            <a key={item.label} onClick={() => navigate(item.path)}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm cursor-pointer transition-all
                 ${item.active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-gray-100'}`}>
               <span className="material-symbols-outlined">{item.icon}</span>
@@ -66,11 +102,7 @@ export default function Dashboard() {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-outline-variant/30 space-y-1">
-          <a className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
-            <span className="material-symbols-outlined">support_agent</span>
-            Soporte
-          </a>
-          <a onClick={handleLogout}
+          <a onClick={() => { logout(); navigate('/login') }}
             className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
             <span className="material-symbols-outlined">logout</span>
             Cerrar sesión
@@ -91,7 +123,6 @@ export default function Dashboard() {
           <div className="flex items-center gap-4">
             <button className="p-2 text-on-surface-variant hover:bg-gray-100 rounded-full relative">
               <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
             </button>
             <div className="flex items-center gap-3 pl-4 border-l border-outline-variant/30">
               <div className="text-right hidden sm:block">
@@ -108,97 +139,116 @@ export default function Dashboard() {
         {/* Content */}
         <main className="flex-1 p-5 md:p-10 max-w-7xl mx-auto w-full">
 
-          {/* Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {cards.map((card) => (
-              <div key={card.label} className="bg-white p-6 rounded-xl border border-[#dfe7da] hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`p-2 rounded-lg ${card.color}`}>
-                    <span className="material-symbols-outlined">{card.icon}</span>
+          {/* Bienvenida */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-on-surface">
+              ¡Hola, {usuario?.nombre?.split(' ')[0]}! 👋
+            </h2>
+            <p className="text-on-surface-variant mt-1">Aquí tienes un resumen de tu actividad en CultivaTech.</p>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <>
+              {/* Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {cards.map((card, i) => (
+                  <button key={i} onClick={card.action}
+                    className={`${card.dark ? 'bg-primary-container' : 'bg-white'} p-6 rounded-xl border border-[#dfe7da] hover:shadow-md transition-all text-left relative overflow-hidden group`}>
+                    <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <span className={`material-symbols-outlined text-5xl ${card.dark ? 'text-white' : 'text-primary'}`}>{card.icon}</span>
+                    </div>
+                    <div className={`p-2 rounded-lg w-fit mb-4 ${card.color}`}>
+                      <span className="material-symbols-outlined">{card.icon}</span>
+                    </div>
+                    {card.alert && (
+                      <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                    )}
+                    <p className={`text-sm mb-1 ${card.dark ? 'text-green-200' : 'text-on-surface-variant'}`}>{card.label}</p>
+                    <h3 className={`text-4xl font-bold ${card.dark ? 'text-white' : 'text-on-surface'}`}>{card.value}</h3>
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* Actividad reciente */}
+                <div className="lg:col-span-2 bg-white rounded-xl border border-[#dfe7da] overflow-hidden">
+                  <div className="p-6 border-b border-[#dfe7da] flex justify-between items-center">
+                    <h3 className="font-semibold text-primary text-lg">Actividad Reciente</h3>
+                    <button onClick={() => navigate('/listas')}
+                      className="text-sm font-semibold text-secondary hover:underline">
+                      Ver todo
+                    </button>
                   </div>
-                  {card.badge && (
-                    <span className="text-xs font-semibold text-primary bg-green-100 px-2 py-1 rounded">{card.badge}</span>
+                  {resumen?.actividad_reciente?.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <span className="material-symbols-outlined text-4xl text-outline mb-2 block">history</span>
+                      <p className="text-sm text-on-surface-variant">No hay actividad reciente.</p>
+                      <button onClick={() => navigate('/listas/nueva')}
+                        className="mt-4 bg-primary text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors">
+                        Crear primera lista
+                      </button>
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-[#dfe7da]">
+                      {resumen.actividad_reciente.map((item, i) => (
+                        <li key={i} className="flex gap-4 p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => navigate('/listas')}>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${estadoBadge[item.estado]}`}>
+                            <span className="material-symbols-outlined text-xl">{estadoIcon[item.estado]}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-on-surface truncate">{item.titulo}</p>
+                            <p className="text-xs text-on-surface-variant">{item.items} ítem(s)</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${estadoBadge[item.estado]}`}>
+                              {item.estado}
+                            </span>
+                            <p className="text-xs text-on-surface-variant mt-1">
+                              {new Date(item.fecha).toLocaleDateString('es-CL')}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                  {card.alert && <span className="w-2 h-2 rounded-full bg-red-500 mt-2"></span>}
                 </div>
-                <p className="text-sm text-on-surface-variant mb-1">{card.label}</p>
-                <h3 className="text-3xl font-bold text-primary">{card.value}</h3>
-              </div>
-            ))}
-          </div>
 
-          {/* Chart + Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* Chart */}
-            <div className="lg:col-span-2 bg-white rounded-xl border border-[#dfe7da] p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="font-semibold text-primary text-lg">Tendencia de Gastos (6 Meses)</h3>
-                <button className="px-3 py-1.5 border border-secondary text-secondary rounded-lg text-xs font-semibold hover:bg-secondary/10 transition-colors">
-                  Exportar
-                </button>
-              </div>
-              <div className="relative min-h-[300px] border border-dashed border-outline-variant rounded-lg overflow-hidden">
-                <div className="absolute inset-0 flex flex-col justify-between py-8 px-10 opacity-20">
-                  {[...Array(5)].map((_, i) => <div key={i} className="w-full h-px bg-outline"></div>)}
-                </div>
-                <svg className="absolute inset-0 w-full h-full px-10 py-8" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="grad" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="#2f4f2f" stopOpacity="1" />
-                      <stop offset="100%" stopColor="#f4f8f2" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path d="M0,80 Q20,70 40,50 T60,60 T80,30 T100,20" fill="none" stroke="#2f4f2f" strokeWidth="2" />
-                  <path d="M0,80 Q20,70 40,50 T60,60 T80,30 T100,20 L100,100 L0,100 Z" fill="url(#grad)" opacity="0.2" />
-                  {[[0,80],[20,65],[40,50],[60,60],[80,30],[100,20]].map(([cx,cy],i) => (
-                    <circle key={i} cx={cx} cy={cy} r="1.5" fill="#2f4f2f" />
-                  ))}
-                </svg>
-                <div className="absolute bottom-2 w-full flex justify-between px-10 text-xs text-on-surface-variant">
-                  {['Ene','Feb','Mar','Abr','May','Jun'].map(m => <span key={m}>{m}</span>)}
+                {/* Acciones rápidas */}
+                <div className="bg-white rounded-xl border border-[#dfe7da] p-6">
+                  <h3 className="font-semibold text-primary text-lg mb-4">Acciones Rápidas</h3>
+                  <div className="flex flex-col gap-3">
+                    {[
+                      { icon: 'add_shopping_cart', label: 'Nueva Lista de Compras', desc: 'Crea y publica a proveedores', path: '/listas/nueva', color: 'bg-primary text-white hover:bg-primary/90' },
+                      { icon: 'request_quote', label: 'Ver Cotizaciones', desc: 'Revisa ofertas de proveedores', path: '/cotizaciones', color: 'bg-secondary-container text-on-secondary-container hover:bg-green-200' },
+                      { icon: 'psychology', label: 'Análisis con IA', desc: 'Predicción de precios', path: '/ia', color: 'bg-gray-100 text-on-surface hover:bg-gray-200' },
+                      { icon: 'history', label: 'Historial de Pedidos', desc: 'Revisa tus compras anteriores', path: '/pedidos', color: 'bg-gray-100 text-on-surface hover:bg-gray-200' },
+                    ].map((accion, i) => (
+                      <button key={i} onClick={() => navigate(accion.path)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-left ${accion.color}`}>
+                        <span className="material-symbols-outlined shrink-0">{accion.icon}</span>
+                        <div>
+                          <p className="font-semibold text-sm">{accion.label}</p>
+                          <p className="text-xs opacity-70">{accion.desc}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {/* Activity */}
-            <div className="bg-white rounded-xl border border-[#dfe7da] flex flex-col overflow-hidden">
-              <div className="p-6 border-b border-[#dfe7da]">
-                <h3 className="font-semibold text-primary text-lg">Actividad Reciente</h3>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2">
-                <ul className="space-y-1">
-                  {actividad.map((item, i) => (
-                    <li key={i} className="flex gap-4 p-4 hover:bg-gray-50 rounded-lg cursor-pointer border-b border-[#dfe7da] last:border-0">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${item.color}`}>
-                        <span className="material-symbols-outlined text-xl">{item.icon}</span>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm text-on-surface">{item.titulo}</p>
-                        <p className="text-xs text-on-surface-variant">{item.desc}</p>
-                        <span className="text-xs text-outline mt-1 block">{item.tiempo}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="p-4 border-t border-[#dfe7da] text-center">
-                <button className="text-sm font-semibold text-primary hover:underline underline-offset-4">
-                  Ver toda la actividad
-                </button>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </main>
 
         {/* Footer */}
-        <footer className="py-6 mt-auto bg-white border-t border-outline-variant/20 flex justify-between items-center px-10">
+        <footer className="py-4 mt-auto bg-white border-t border-outline-variant/20 flex justify-between items-center px-10">
           <span className="font-bold text-primary text-sm">CultivaTech</span>
-          <span className="text-xs text-on-surface-variant">© 2024 CultivaTech Agricultural Solutions</span>
-          <div className="flex gap-4 text-xs text-on-surface-variant">
-            <a href="#" className="hover:text-primary">Privacidad</a>
-            <a href="#" className="hover:text-primary">Términos</a>
-          </div>
+          <span className="text-xs text-on-surface-variant">© 2026 CultivaTech Agricultural Solutions</span>
         </footer>
       </div>
     </div>
