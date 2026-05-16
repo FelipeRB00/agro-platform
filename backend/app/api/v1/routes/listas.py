@@ -28,27 +28,55 @@ def crear_lista(
 ):
     agricultor = get_agricultor(db, current_user)
 
-    lista = ListaCompra(
-        agricultor_id=agricultor.id,
-        titulo=data.titulo,
-        estado=data.estado
-    )
-    db.add(lista)
-    db.flush()
+    # Validar título
+    if not data.titulo or not data.titulo.strip():
+        raise HTTPException(status_code=400, detail="El título no puede estar vacío")
 
+    # Validar que vengan items
+    if not data.items or len(data.items) == 0:
+        raise HTTPException(status_code=400, detail="La lista debe tener al menos un ítem")
+
+    # Validar que todos los insumos existen antes de crear nada
     for item_data in data.items:
-        item = ItemLista(
-            lista_id=lista.id,
-            insumo_id=item_data.insumo_id,
-            cantidad=item_data.cantidad,
-            unidad_medida=item_data.unidad_medida,
-            nota=item_data.nota
-        )
-        db.add(item)
+        insumo = db.query(Insumo).filter(Insumo.id == item_data.insumo_id).first()
+        if not insumo:
+            raise HTTPException(
+                status_code=404,
+                detail=f"El insumo con ID {item_data.insumo_id} no existe"
+            )
+        if item_data.cantidad <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La cantidad del insumo {insumo.nombre} debe ser mayor a 0"
+            )
 
-    db.commit()
-    db.refresh(lista)
-    return lista
+    # Crear lista solo si todas las validaciones pasaron
+    try:
+        lista = ListaCompra(
+            agricultor_id=agricultor.id,
+            titulo=data.titulo.strip(),
+            estado=data.estado
+        )
+        db.add(lista)
+        db.flush()
+
+        for item_data in data.items:
+            item = ItemLista(
+                lista_id=lista.id,
+                insumo_id=item_data.insumo_id,
+                cantidad=item_data.cantidad,
+                unidad_medida=item_data.unidad_medida,
+                nota=item_data.nota
+            )
+            db.add(item)
+
+        db.commit()
+        db.refresh(lista)
+        return lista
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al crear lista: {str(e)}")
 
 @router.get("/", response_model=List[ListaCompraResponse])
 def mis_listas(
