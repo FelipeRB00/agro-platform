@@ -37,6 +37,9 @@ export default function InteligenciaArtificial() {
   const [loadingRec, setLoadingRec] = useState(true)
   const [loadingPrediccion, setLoadingPrediccion] = useState(false)
   const [tabActiva, setTabActiva] = useState('precios')
+  const [alertas, setAlertas] = useState([])
+  const [loadingAlertas, setLoadingAlertas] = useState(false)
+  const [umbral, setUmbral] = useState(10)
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
@@ -44,6 +47,7 @@ export default function InteligenciaArtificial() {
     { icon: 'request_quote', label: 'Cotizaciones', path: '/cotizaciones' },
     { icon: 'psychology', label: 'Análisis IA', path: '/ia', active: true },
     { icon: 'history', label: 'Pedidos', path: '/pedidos' },
+    { key: 'alertas', icon: 'notifications_active', label: 'Alertas de Precios' },
   ]
 
   useEffect(() => {
@@ -71,6 +75,18 @@ export default function InteligenciaArtificial() {
       setLoadingPrediccion(false)
     }
   }
+  const cargarAlertas = async () => {
+  setLoadingAlertas(true)
+  try {
+    const res = await api.get(`/ia/alertas-precios?umbral=${umbral}`)
+    setAlertas(res.data)
+  } catch {}
+  finally { setLoadingAlertas(false) }
+}
+
+useEffect(() => {
+  if (tabActiva === 'alertas') cargarAlertas()
+}, [tabActiva, umbral])
 
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
@@ -396,6 +412,91 @@ export default function InteligenciaArtificial() {
                 </div>
               )}
             </div>
+            {/* Tab Alertas */}
+{tabActiva === 'alertas' && (
+  <div>
+    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+      <div>
+        <h3 className="font-bold text-primary text-lg mb-1">Alertas Inteligentes de Precios</h3>
+        <p className="text-sm text-on-surface-variant">Precios que varían significativamente respecto a su promedio histórico.</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-on-surface-variant">Umbral de variación:</span>
+        <select value={umbral} onChange={e => setUmbral(parseInt(e.target.value))}
+          className="border border-outline-variant rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-secondary bg-white">
+          <option value={5}>5%</option>
+          <option value={10}>10%</option>
+          <option value={15}>15%</option>
+          <option value={20}>20%</option>
+        </select>
+      </div>
+    </div>
+
+    {loadingAlertas ? (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    ) : alertas.length === 0 ? (
+      <div className="bg-white rounded-xl border border-outline-variant/30 p-12 text-center">
+        <span className="material-symbols-outlined text-5xl text-green-500 mb-3 block">check_circle</span>
+        <h4 className="font-semibold text-on-surface mb-2">Sin alertas activas</h4>
+        <p className="text-sm text-on-surface-variant">
+          No hay precios con variaciones mayores al {umbral}% respecto a su promedio histórico.
+        </p>
+      </div>
+    ) : (
+      <div className="flex flex-col gap-4">
+        {alertas.map((alerta, i) => (
+          <div key={i}
+            className={`bg-white rounded-xl border p-5 shadow-sm flex flex-col md:flex-row justify-between gap-4
+              ${alerta.tipo_alerta === 'alza' ? 'border-red-200' : 'border-green-200'}`}>
+
+            <div className="flex items-start gap-4">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0
+                ${alerta.tipo_alerta === 'alza' ? 'bg-red-100' : 'bg-green-100'}`}>
+                <span className={`material-symbols-outlined text-xl
+                  ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
+                  {alerta.tipo_alerta === 'alza' ? 'trending_up' : 'trending_down'}
+                </span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-bold text-on-surface">{alerta.insumo_nombre}</h4>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
+                    ${alerta.severidad === 'alta' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {alerta.severidad === 'alta' ? '🔴 Alta' : '🟡 Media'}
+                  </span>
+                </div>
+                <p className="text-sm text-on-surface-variant mb-1">Proveedor: {alerta.proveedor_nombre}</p>
+                <p className="text-sm text-on-surface">{alerta.mensaje}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-6 shrink-0 md:text-right">
+              <div>
+                <p className="text-xs text-on-surface-variant">Precio actual</p>
+                <p className={`text-xl font-bold ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
+                  ${alerta.precio_actual.toLocaleString('es-CL')}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-on-surface-variant">Promedio histórico</p>
+                <p className="text-xl font-bold text-on-surface">
+                  ${alerta.precio_promedio_historico.toLocaleString('es-CL')}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-on-surface-variant">Variación</p>
+                <p className={`text-xl font-bold ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
+                  {alerta.variacion_porcentual > 0 ? '+' : ''}{alerta.variacion_porcentual}%
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
           )}
         </main>
       </div>

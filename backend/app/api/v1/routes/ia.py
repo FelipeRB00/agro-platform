@@ -46,3 +46,20 @@ def mejores_proveedores(
     current_user: Usuario = Depends(get_current_user)
 ):
     return recomendar_proveedores(db, insumo_id)
+
+from app.ia.alertas_precios import detectar_alertas_precios, obtener_resumen_alertas
+
+@router.get("/alertas-precios")
+def alertas_precios(
+    umbral: float = Query(default=10.0, ge=1.0, le=50.0),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    return detectar_alertas_precios(db, umbral)
+
+@router.get("/alertas-precios/resumen")
+def resumen_alertas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    return obtener_resumen_alertas(db)
