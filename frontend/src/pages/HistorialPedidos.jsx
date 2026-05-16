@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
-import logo from '../assets/logo.png'
+import Sidebar from '../components/Sidebar'
+import Header from '../components/Header'
+import LoadingSpinner from '../components/LoadingSpinner'
+import EmptyState from '../components/EmptyState'
+import ErrorMessage from '../components/ErrorMessage'
 
 const estadoBadge = {
   entregado: 'bg-green-50 text-green-700 border border-green-200',
@@ -19,10 +22,10 @@ const estadoDot = {
 }
 
 export default function HistorialPedidos() {
-  const { usuario, logout } = useAuth()
   const navigate = useNavigate()
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [busqueda, setBusqueda] = useState('')
 
   const navItems = [
@@ -33,12 +36,16 @@ export default function HistorialPedidos() {
     { icon: 'history', label: 'Pedidos', path: '/pedidos', active: true },
   ]
 
-  useEffect(() => {
+  const cargarPedidos = () => {
+    setLoading(true)
+    setError('')
     api.get('/cotizaciones/pedidos/historial')
       .then(res => setPedidos(res.data))
-      .catch(() => {})
+      .catch(() => setError('Error al cargar el historial de pedidos'))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { cargarPedidos() }, [])
 
   const pedidosFiltrados = pedidos.filter(p =>
     p.proveedor.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -48,58 +55,9 @@ export default function HistorialPedidos() {
 
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
-
-      {/* Sidebar */}
-      <aside className="hidden md:flex flex-col p-6 h-screen w-64 fixed left-0 top-0 bg-white border-r border-outline-variant/30 z-30">
-        <div className="mb-8 flex items-center gap-3">
-          <img src={logo} alt="CultivaTech" className="h-10 w-10 object-contain rounded-lg" />
-          <div>
-            <h1 className="font-bold text-primary text-base">CultivaTech</h1>
-            <p className="text-xs text-on-surface-variant">Gestión Agrícola</p>
-          </div>
-        </div>
-        <button onClick={() => navigate('/listas/nueva')}
-          className="w-full py-3 px-4 bg-primary text-white rounded-lg font-semibold text-sm mb-6 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-          <span className="material-symbols-outlined">add</span>
-          Nueva Lista
-        </button>
-        <nav className="flex-1 space-y-1">
-          {navItems.map(item => (
-            <a key={item.label} onClick={() => navigate(item.path)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-semibold text-sm cursor-pointer transition-all
-                ${item.active ? 'bg-secondary-container text-on-secondary-container' : 'text-on-surface-variant hover:bg-gray-100'}`}>
-              <span className="material-symbols-outlined">{item.icon}</span>
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <div className="mt-auto pt-6 border-t border-outline-variant/30">
-          <a onClick={() => { logout(); navigate('/login') }}
-            className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
-            <span className="material-symbols-outlined">logout</span>
-            Cerrar sesión
-          </a>
-        </div>
-      </aside>
-
-      {/* Main */}
+      <Sidebar navItems={navItems} tipo="agricultor" />
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
-
-        {/* Header */}
-        <header className="flex justify-between items-center h-16 px-6 bg-white/80 backdrop-blur-md border-b border-outline-variant/30 sticky top-0 z-20">
-          <h2 className="font-bold text-primary text-xl">Historial de Pedidos</h2>
-          <div className="flex items-center gap-3 pl-4 border-l border-outline-variant/30">
-            <div className="text-right hidden sm:block">
-              <p className="font-semibold text-sm text-primary">{usuario?.nombre}</p>
-              <p className="text-xs text-on-surface-variant capitalize">{usuario?.rol}</p>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center font-bold text-sm text-on-secondary-container">
-              {usuario?.nombre?.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </header>
-
-        {/* Content */}
+        <Header titulo="Historial de Pedidos" />
         <main className="flex-1 p-5 md:p-8 max-w-7xl mx-auto w-full">
 
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
@@ -108,6 +66,8 @@ export default function HistorialPedidos() {
               <p className="text-sm text-on-surface-variant">Todas tus compras completadas en CultivaTech.</p>
             </div>
           </div>
+
+          {error && <div className="mb-4"><ErrorMessage mensaje={error} onRetry={cargarPedidos} /></div>}
 
           {/* Buscar */}
           <div className="bg-white border border-outline-variant/30 p-4 rounded-xl mb-6 shadow-sm">
@@ -120,19 +80,15 @@ export default function HistorialPedidos() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : pedidosFiltrados.length === 0 && pedidos.length === 0 ? (
-            <div className="bg-white rounded-xl border border-outline-variant/30 p-12 text-center">
-              <span className="material-symbols-outlined text-5xl text-outline mb-3 block">receipt_long</span>
-              <h3 className="font-semibold text-on-surface mb-2">No tienes pedidos aún</h3>
-              <p className="text-sm text-on-surface-variant mb-4">Cuando aceptes una cotización aparecerá aquí.</p>
-              <button onClick={() => navigate('/cotizaciones')}
-                className="bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors">
-                Ver Cotizaciones
-              </button>
-            </div>
+            <LoadingSpinner texto="Cargando historial..." />
+          ) : pedidos.length === 0 ? (
+            <EmptyState
+              icon="receipt_long"
+              titulo="No tienes pedidos aún"
+              descripcion="Cuando aceptes una cotización aparecerá aquí."
+              accion="Ver Cotizaciones"
+              onAccion={() => navigate('/cotizaciones')}
+            />
           ) : (
             <div className="bg-white rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
@@ -148,7 +104,13 @@ export default function HistorialPedidos() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/20">
-                    {pedidosFiltrados.map((p, i) => (
+                    {pedidosFiltrados.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-sm text-on-surface-variant">
+                          No se encontraron pedidos con "{busqueda}"
+                        </td>
+                      </tr>
+                    ) : pedidosFiltrados.map((p, i) => (
                       <tr key={i} className="hover:bg-gray-50 transition-colors">
                         <td className="py-4 px-6 text-sm font-semibold text-on-surface">{p.id}</td>
                         <td className="py-4 px-6 text-sm text-on-surface">{p.titulo}</td>
