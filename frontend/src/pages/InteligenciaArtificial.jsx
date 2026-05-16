@@ -30,16 +30,16 @@ export default function InteligenciaArtificial() {
 
   const [resumenPrecios, setResumenPrecios] = useState([])
   const [recomendaciones, setRecomendaciones] = useState([])
+  const [alertas, setAlertas] = useState([])
   const [prediccion, setPrediccion] = useState(null)
   const [insumoSeleccionado, setInsumoSeleccionado] = useState(null)
   const [diasPrediccion, setDiasPrediccion] = useState(30)
+  const [umbral, setUmbral] = useState(10)
   const [loadingResumen, setLoadingResumen] = useState(true)
   const [loadingRec, setLoadingRec] = useState(true)
+  const [loadingAlertas, setLoadingAlertas] = useState(false)
   const [loadingPrediccion, setLoadingPrediccion] = useState(false)
   const [tabActiva, setTabActiva] = useState('precios')
-  const [alertas, setAlertas] = useState([])
-  const [loadingAlertas, setLoadingAlertas] = useState(false)
-  const [umbral, setUmbral] = useState(10)
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
@@ -47,7 +47,6 @@ export default function InteligenciaArtificial() {
     { icon: 'request_quote', label: 'Cotizaciones', path: '/cotizaciones' },
     { icon: 'psychology', label: 'Análisis IA', path: '/ia', active: true },
     { icon: 'history', label: 'Pedidos', path: '/pedidos' },
-    { key: 'alertas', icon: 'notifications_active', label: 'Alertas de Precios' },
   ]
 
   useEffect(() => {
@@ -62,6 +61,19 @@ export default function InteligenciaArtificial() {
       .finally(() => setLoadingRec(false))
   }, [])
 
+  const cargarAlertas = async () => {
+    setLoadingAlertas(true)
+    try {
+      const res = await api.get(`/ia/alertas-precios?umbral=${umbral}`)
+      setAlertas(res.data)
+    } catch {}
+    finally { setLoadingAlertas(false) }
+  }
+
+  useEffect(() => {
+    if (tabActiva === 'alertas') cargarAlertas()
+  }, [tabActiva, umbral])
+
   const handlePrediccion = async (insumo) => {
     setInsumoSeleccionado(insumo)
     setLoadingPrediccion(true)
@@ -75,18 +87,6 @@ export default function InteligenciaArtificial() {
       setLoadingPrediccion(false)
     }
   }
-  const cargarAlertas = async () => {
-  setLoadingAlertas(true)
-  try {
-    const res = await api.get(`/ia/alertas-precios?umbral=${umbral}`)
-    setAlertas(res.data)
-  } catch {}
-  finally { setLoadingAlertas(false) }
-}
-
-useEffect(() => {
-  if (tabActiva === 'alertas') cargarAlertas()
-}, [tabActiva, umbral])
 
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
@@ -166,6 +166,7 @@ useEffect(() => {
             {[
               { key: 'precios', icon: 'show_chart', label: 'Predicción de Precios' },
               { key: 'recomendaciones', icon: 'recommend', label: 'Recomendaciones' },
+              { key: 'alertas', icon: 'notifications_active', label: 'Alertas de Precios' },
             ].map(tab => (
               <button key={tab.key} onClick={() => setTabActiva(tab.key)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all
@@ -253,7 +254,7 @@ useEffect(() => {
                   <div className="bg-white rounded-xl border border-dashed border-outline-variant p-12 text-center">
                     <span className="material-symbols-outlined text-5xl text-outline mb-3 block">auto_graph</span>
                     <h4 className="font-semibold text-on-surface mb-2">Selecciona un insumo</h4>
-                    <p className="text-sm text-on-surface-variant">Haz click en un insumo de la izquierda para ver la predicción de precios.</p>
+                    <p className="text-sm text-on-surface-variant">Haz click en un insumo para ver la predicción de precios.</p>
                   </div>
                 ) : loadingPrediccion ? (
                   <div className="bg-white rounded-xl border border-outline-variant/30 p-12 text-center">
@@ -274,7 +275,6 @@ useEffect(() => {
                       )}
                     </div>
 
-                    {/* Precio actual vs predicho */}
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div className="bg-gray-50 rounded-lg p-4 text-center border border-outline-variant/20">
                         <p className="text-xs text-on-surface-variant mb-1">Precio Actual</p>
@@ -290,7 +290,6 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    {/* Tendencia */}
                     {prediccion.tendencia !== 'sin_datos' && (
                       <div className={`flex items-center gap-3 p-4 rounded-lg border mb-6 ${tendenciaConfig[prediccion.tendencia]?.bg}`}>
                         <span className={`material-symbols-outlined text-2xl ${tendenciaConfig[prediccion.tendencia]?.color}`}>
@@ -309,7 +308,6 @@ useEffect(() => {
                       </div>
                     )}
 
-                    {/* Histórico */}
                     {prediccion.datos_historicos?.length > 0 && (
                       <div>
                         <h4 className="font-semibold text-sm text-on-surface mb-3">Historial de Precios</h4>
@@ -325,7 +323,7 @@ useEffect(() => {
                               {prediccion.datos_historicos.map((d, i) => (
                                 <tr key={i} className="border-b border-outline-variant/10 last:border-0">
                                   <td className="py-1.5 text-on-surface-variant">{d.fecha}</td>
-                                  <td className="py-1.5 text-right font-semibold text-on-surface">${d.precio.toLocaleString('es-CL')}</td>
+                                  <td className="py-1.5 text-right font-semibold">${d.precio.toLocaleString('es-CL')}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -334,7 +332,6 @@ useEffect(() => {
                       </div>
                     )}
 
-                    {/* Recomendación de acción */}
                     <div className="mt-6 p-4 bg-primary/5 border border-primary/20 rounded-lg">
                       <p className="text-xs font-semibold text-primary flex items-center gap-1 mb-1">
                         <span className="material-symbols-outlined text-sm">lightbulb</span>
@@ -392,7 +389,6 @@ useEffect(() => {
                       </div>
                       <h4 className="font-bold text-on-surface mb-1">{rec.nombre}</h4>
                       <p className="text-xs text-on-surface-variant mb-4">{rec.razon}</p>
-
                       <div className="flex justify-between items-center pt-3 border-t border-outline-variant/20">
                         <div>
                           {rec.precio_promedio ? (
@@ -412,92 +408,93 @@ useEffect(() => {
                 </div>
               )}
             </div>
-            {/* Tab Alertas */}
-{tabActiva === 'alertas' && (
-  <div>
-    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-      <div>
-        <h3 className="font-bold text-primary text-lg mb-1">Alertas Inteligentes de Precios</h3>
-        <p className="text-sm text-on-surface-variant">Precios que varían significativamente respecto a su promedio histórico.</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-on-surface-variant">Umbral de variación:</span>
-        <select value={umbral} onChange={e => setUmbral(parseInt(e.target.value))}
-          className="border border-outline-variant rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-secondary bg-white">
-          <option value={5}>5%</option>
-          <option value={10}>10%</option>
-          <option value={15}>15%</option>
-          <option value={20}>20%</option>
-        </select>
-      </div>
-    </div>
-
-    {loadingAlertas ? (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    ) : alertas.length === 0 ? (
-      <div className="bg-white rounded-xl border border-outline-variant/30 p-12 text-center">
-        <span className="material-symbols-outlined text-5xl text-green-500 mb-3 block">check_circle</span>
-        <h4 className="font-semibold text-on-surface mb-2">Sin alertas activas</h4>
-        <p className="text-sm text-on-surface-variant">
-          No hay precios con variaciones mayores al {umbral}% respecto a su promedio histórico.
-        </p>
-      </div>
-    ) : (
-      <div className="flex flex-col gap-4">
-        {alertas.map((alerta, i) => (
-          <div key={i}
-            className={`bg-white rounded-xl border p-5 shadow-sm flex flex-col md:flex-row justify-between gap-4
-              ${alerta.tipo_alerta === 'alza' ? 'border-red-200' : 'border-green-200'}`}>
-
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0
-                ${alerta.tipo_alerta === 'alza' ? 'bg-red-100' : 'bg-green-100'}`}>
-                <span className={`material-symbols-outlined text-xl
-                  ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
-                  {alerta.tipo_alerta === 'alza' ? 'trending_up' : 'trending_down'}
-                </span>
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-bold text-on-surface">{alerta.insumo_nombre}</h4>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
-                    ${alerta.severidad === 'alta' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {alerta.severidad === 'alta' ? '🔴 Alta' : '🟡 Media'}
-                  </span>
-                </div>
-                <p className="text-sm text-on-surface-variant mb-1">Proveedor: {alerta.proveedor_nombre}</p>
-                <p className="text-sm text-on-surface">{alerta.mensaje}</p>
-              </div>
-            </div>
-
-            <div className="flex gap-6 shrink-0 md:text-right">
-              <div>
-                <p className="text-xs text-on-surface-variant">Precio actual</p>
-                <p className={`text-xl font-bold ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
-                  ${alerta.precio_actual.toLocaleString('es-CL')}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-on-surface-variant">Promedio histórico</p>
-                <p className="text-xl font-bold text-on-surface">
-                  ${alerta.precio_promedio_historico.toLocaleString('es-CL')}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-on-surface-variant">Variación</p>
-                <p className={`text-xl font-bold ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
-                  {alerta.variacion_porcentual > 0 ? '+' : ''}{alerta.variacion_porcentual}%
-                </p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
           )}
+
+          {/* Tab Alertas */}
+          {tabActiva === 'alertas' && (
+            <div>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                  <h3 className="font-bold text-primary text-lg mb-1">Alertas Inteligentes de Precios</h3>
+                  <p className="text-sm text-on-surface-variant">Precios que varían significativamente respecto a su promedio histórico.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-on-surface-variant">Umbral de variación:</span>
+                  <select value={umbral} onChange={e => setUmbral(parseInt(e.target.value))}
+                    className="border border-outline-variant rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-secondary bg-white">
+                    <option value={5}>5%</option>
+                    <option value={10}>10%</option>
+                    <option value={15}>15%</option>
+                    <option value={20}>20%</option>
+                  </select>
+                </div>
+              </div>
+
+              {loadingAlertas ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : alertas.length === 0 ? (
+                <div className="bg-white rounded-xl border border-outline-variant/30 p-12 text-center">
+                  <span className="material-symbols-outlined text-5xl text-green-500 mb-3 block">check_circle</span>
+                  <h4 className="font-semibold text-on-surface mb-2">Sin alertas activas</h4>
+                  <p className="text-sm text-on-surface-variant">
+                    No hay precios con variaciones mayores al {umbral}% respecto a su promedio histórico.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {alertas.map((alerta, i) => (
+                    <div key={i}
+                      className={`bg-white rounded-xl border p-5 shadow-sm flex flex-col md:flex-row justify-between gap-4
+                        ${alerta.tipo_alerta === 'alza' ? 'border-red-200' : 'border-green-200'}`}>
+                      <div className="flex items-start gap-4">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0
+                          ${alerta.tipo_alerta === 'alza' ? 'bg-red-100' : 'bg-green-100'}`}>
+                          <span className={`material-symbols-outlined text-xl
+                            ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
+                            {alerta.tipo_alerta === 'alza' ? 'trending_up' : 'trending_down'}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-bold text-on-surface">{alerta.insumo_nombre}</h4>
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full
+                              ${alerta.severidad === 'alta' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {alerta.severidad === 'alta' ? '🔴 Alta' : '🟡 Media'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-on-surface-variant mb-1">Proveedor: {alerta.proveedor_nombre}</p>
+                          <p className="text-sm text-on-surface">{alerta.mensaje}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-6 shrink-0 md:text-right">
+                        <div>
+                          <p className="text-xs text-on-surface-variant">Precio actual</p>
+                          <p className={`text-xl font-bold ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
+                            ${alerta.precio_actual.toLocaleString('es-CL')}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-on-surface-variant">Promedio histórico</p>
+                          <p className="text-xl font-bold text-on-surface">
+                            ${alerta.precio_promedio_historico.toLocaleString('es-CL')}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-on-surface-variant">Variación</p>
+                          <p className={`text-xl font-bold ${alerta.tipo_alerta === 'alza' ? 'text-red-600' : 'text-green-600'}`}>
+                            {alerta.variacion_porcentual > 0 ? '+' : ''}{alerta.variacion_porcentual}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </main>
       </div>
     </div>
