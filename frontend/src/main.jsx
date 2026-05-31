@@ -6,6 +6,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 
 import Login from './pages/Login'
 import Register from './pages/Register'
+import Perfil from './pages/Perfil'
+
 
 // Agricultor
 import Dashboard from './pages/Dashboard'
@@ -111,6 +113,14 @@ createRoot(document.getElementById('root')).render(
 
           {/* Cualquier ruta desconocida */}
           <Route path="*" element={<HomeRedirect />} />
+
+
+          <Route path="/perfil" element={
+  <ProtectedRoute roles={['agricultor', 'proveedor']}>
+    <Perfil />
+  </ProtectedRoute>
+} />
+
         </Routes>
       </AuthProvider>
     </BrowserRouter>

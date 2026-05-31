@@ -54,18 +54,23 @@ export default function Sidebar({ navItems, tipo = 'agricultor' }) {
           </a>
         ))}
       </nav>
-
-      <div className="mt-auto pt-6 border-t border-outline-variant/30 space-y-1">
-        <a className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
-          <span className="material-symbols-outlined">support_agent</span>
-          Soporte
-        </a>
-        <a onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
-          <span className="material-symbols-outlined">logout</span>
-          Cerrar sesión
-        </a>
-      </div>
+      
+<div className="mt-auto pt-6 border-t border-outline-variant/30 space-y-1">
+  <a onClick={() => navigate('/perfil')}
+    className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
+    <span className="material-symbols-outlined">person</span>
+    Mi Perfil
+  </a>
+  <a className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
+    <span className="material-symbols-outlined">support_agent</span>
+    Soporte
+  </a>
+  <a onClick={handleLogout}
+    className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
+    <span className="material-symbols-outlined">logout</span>
+    Cerrar sesión
+  </a>
+</div>
     </aside>
   )
 }

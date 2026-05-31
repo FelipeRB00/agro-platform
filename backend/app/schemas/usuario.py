@@ -10,7 +10,7 @@ class UsuarioBase(BaseModel):
 
 class UsuarioCreate(UsuarioBase):
     password: str
-    rol: str  # admin, proveedor, agricultor
+    rol: str
 
 class UsuarioResponse(UsuarioBase):
     id: int
@@ -30,3 +30,11 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     rol: str
     nombre: str
+
+class UsuarioUpdate(BaseModel):
+    nombre: Optional[str] = None
+    telefono: Optional[str] = None
+
+class PasswordUpdate(BaseModel):
+    password_actual: str
+    password_nuevo: str
