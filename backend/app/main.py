@@ -8,7 +8,7 @@ from app.db.database import Base, engine
 from app.models import (usuario, proveedor, agricultor,
                         insumo, catalogo, lista_compra,
                         cotizacion, pedido, pago, historial, alerta)
-from app.api.v1.routes import auth, insumos, listas, catalogo as catalogo_routes, cotizaciones, admin, ia, perfil
+from app.api.v1.routes import auth, insumos, listas, catalogo as catalogo_routes, cotizaciones, admin, ia, perfil, reportes
 from app.db.seed import seed_insumos
 
 # Crear tablas
@@ -58,6 +58,7 @@ app.include_router(cotizaciones.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(ia.router, prefix="/api/v1")
 app.include_router(perfil.router, prefix="/api/v1")
+app.include_router(reportes.router, prefix="/api/v1")
 
 
 @app.get("/")

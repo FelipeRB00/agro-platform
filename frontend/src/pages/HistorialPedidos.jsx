@@ -47,6 +47,26 @@ export default function HistorialPedidos() {
 
   useEffect(() => { cargarPedidos() }, [])
 
+  // ✅ handleExportar va aquí, FUERA del return
+  const handleExportar = async (formato) => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(
+        `http://127.0.0.1:8001/api/v1/reportes/historial/${formato}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `historial_pedidos.${formato === 'pdf' ? 'pdf' : 'xlsx'}`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      alert('Error al exportar el reporte')
+    }
+  }
+
   const pedidosFiltrados = pedidos.filter(p =>
     p.proveedor.toLowerCase().includes(busqueda.toLowerCase()) ||
     p.id.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -60,10 +80,23 @@ export default function HistorialPedidos() {
         <Header titulo="Historial de Pedidos" />
         <main className="flex-1 p-5 md:p-8 max-w-7xl mx-auto w-full">
 
+          {/* ✅ Header con botones de exportar */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
             <div>
               <h2 className="text-2xl font-bold text-on-surface">Historial de Pedidos</h2>
               <p className="text-sm text-on-surface-variant">Todas tus compras completadas en CultivaTech.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => handleExportar('pdf')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-red-600 text-white rounded-lg font-semibold text-sm hover:bg-red-700 transition-colors">
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                Exportar PDF
+              </button>
+              <button onClick={() => handleExportar('excel')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-green-700 text-white rounded-lg font-semibold text-sm hover:bg-green-800 transition-colors">
+                <span className="material-symbols-outlined text-sm">table_view</span>
+                Exportar Excel
+              </button>
             </div>
           </div>
 
