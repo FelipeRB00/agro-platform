@@ -6,6 +6,7 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const estadoBadge = {
   borrador: 'bg-yellow-100 text-yellow-700',
@@ -18,6 +19,16 @@ export default function MisListas() {
   const [listas, setListas] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  // ✅ Estado del dialog
+  const [dialog, setDialog] = useState({
+    abierto: false,
+    titulo: '',
+    mensaje: '',
+    tipo: 'warning',
+    confirmText: 'Confirmar',
+    onConfirm: null
+  })
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
@@ -38,33 +49,66 @@ export default function MisListas() {
 
   useEffect(() => { cargarListas() }, [])
 
-  const handleEliminar = async (id) => {
-    if (!confirm('¿Eliminar esta lista?')) return
-    try {
-      await api.delete(`/listas/${id}`)
-      setListas(listas.filter(l => l.id !== id))
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Error al eliminar')
-    }
+  const cerrarDialog = () => setDialog(d => ({ ...d, abierto: false }))
+
+  // ✅ Eliminar con ConfirmDialog
+  const handleEliminar = (id) => {
+    setDialog({
+      abierto: true,
+      titulo: 'Eliminar Lista',
+      mensaje: '¿Estás seguro que deseas eliminar esta lista? Esta acción no se puede deshacer.',
+      tipo: 'danger',
+      confirmText: 'Sí, eliminar',
+      onConfirm: async () => {
+        cerrarDialog()
+        try {
+          await api.delete(`/listas/${id}`)
+          setListas(prev => prev.filter(l => l.id !== id))
+        } catch (err) {
+          setError(err.response?.data?.detail || 'Error al eliminar')
+        }
+      }
+    })
   }
 
-  const handlePublicar = async (id) => {
-    try {
-      await api.post(`/listas/${id}/publicar`)
-      setListas(listas.map(l => l.id === id ? { ...l, estado: 'publicada' } : l))
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Error al publicar')
-    }
+  // ✅ Publicar con ConfirmDialog
+  const handlePublicar = (id) => {
+    setDialog({
+      abierto: true,
+      titulo: 'Publicar Lista',
+      mensaje: 'Tu lista será visible para todos los proveedores que tengan los insumos solicitados. ¿Deseas continuar?',
+      tipo: 'info',
+      confirmText: 'Sí, publicar',
+      onConfirm: async () => {
+        cerrarDialog()
+        try {
+          await api.post(`/listas/${id}/publicar`)
+          setListas(prev => prev.map(l => l.id === id ? { ...l, estado: 'publicada' } : l))
+        } catch (err) {
+          setError(err.response?.data?.detail || 'Error al publicar')
+        }
+      }
+    })
   }
 
-  const handleDespublicar = async (id) => {
-    if (!confirm('¿Volver esta lista a borrador? Solo es posible si no tiene cotizaciones aún.')) return
-    try {
-      await api.put(`/listas/${id}/despublicar`)
-      setListas(listas.map(l => l.id === id ? { ...l, estado: 'borrador' } : l))
-    } catch (err) {
-      alert(err.response?.data?.detail || 'No se puede modificar esta lista')
-    }
+  // ✅ Despublicar con ConfirmDialog
+  const handleDespublicar = (id) => {
+    setDialog({
+      abierto: true,
+      titulo: 'Volver a Borrador',
+      mensaje: 'Esta lista volverá a estado borrador y dejará de ser visible para los proveedores. Solo es posible si no tiene cotizaciones aún.',
+      tipo: 'warning',
+      confirmText: 'Sí, volver a borrador',
+      onConfirm: async () => {
+        cerrarDialog()
+        try {
+          await api.put(`/listas/${id}/despublicar`)
+          setListas(prev => prev.map(l => l.id === id ? { ...l, estado: 'borrador' } : l))
+        } catch (err) {
+          setError(err.response?.data?.detail || 'No se puede modificar esta lista')
+        }
+      }
+    })
   }
 
   return (
@@ -86,7 +130,7 @@ export default function MisListas() {
             </button>
           </div>
 
-          {error && <ErrorMessage mensaje={error} onRetry={cargarListas} />}
+          {error && <div className="mb-4"><ErrorMessage mensaje={error} onRetry={cargarListas} /></div>}
 
           {loading ? (
             <LoadingSpinner texto="Cargando tus listas..." />
@@ -127,7 +171,7 @@ export default function MisListas() {
                       </>
                     )}
                     {lista.estado === 'publicada' && (
-                      <>S
+                      <>
                         <button onClick={() => navigate('/cotizaciones', { state: { lista_id: lista.id } })}
                           className="flex-1 py-2 text-sm font-semibold text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors text-center">
                           Ver Cotizaciones
@@ -152,6 +196,18 @@ export default function MisListas() {
           )}
         </main>
       </div>
+
+      {/* ✅ Dialog de confirmación */}
+      <ConfirmDialog
+        abierto={dialog.abierto}
+        titulo={dialog.titulo}
+        mensaje={dialog.mensaje}
+        tipo={dialog.tipo}
+        confirmText={dialog.confirmText}
+        cancelText="Cancelar"
+        onConfirm={dialog.onConfirm}
+        onCancel={cerrarDialog}
+      />
     </div>
   )
 }
