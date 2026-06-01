@@ -10,6 +10,10 @@ from app.schemas.lista_compra import ListaCompraCreate, ListaCompraResponse
 from app.core.dependencies import get_current_user, require_rol
 from app.models.usuario import Usuario
 from app.models.insumo import Insumo
+from app.models.proveedor import Proveedor as ProveedorModel
+from app.core.websocket_manager import manager
+import asyncio
+import threading
 
 router = APIRouter(prefix="/listas", tags=["Listas de Compra"])
 
@@ -29,15 +33,12 @@ def crear_lista(
 ):
     agricultor = get_agricultor(db, current_user)
 
-    # Validar título
     if not data.titulo or not data.titulo.strip():
         raise HTTPException(status_code=400, detail="El título no puede estar vacío")
 
-    # Validar que vengan items
     if not data.items or len(data.items) == 0:
         raise HTTPException(status_code=400, detail="La lista debe tener al menos un ítem")
 
-    # Validar que todos los insumos existen antes de crear nada
     for item_data in data.items:
         insumo = db.query(Insumo).filter(Insumo.id == item_data.insumo_id).first()
         if not insumo:
@@ -51,7 +52,6 @@ def crear_lista(
                 detail=f"La cantidad del insumo {insumo.nombre} debe ser mayor a 0"
             )
 
-    # Crear lista solo si todas las validaciones pasaron
     try:
         lista = ListaCompra(
             agricultor_id=agricultor.id,
@@ -79,6 +79,7 @@ def crear_lista(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al crear lista: {str(e)}")
 
+
 @router.get("/", response_model=List[ListaCompraResponse])
 def mis_listas(
     db: Session = Depends(get_db),
@@ -89,6 +90,7 @@ def mis_listas(
         ListaCompra.agricultor_id == agricultor.id
     ).order_by(ListaCompra.creado_en.desc()).all()
 
+
 @router.get("/resumen")
 def resumen_agricultor(
     db: Session = Depends(get_db),
@@ -97,9 +99,7 @@ def resumen_agricultor(
     agricultor = get_agricultor(db, current_user)
 
     from app.models.cotizacion import Cotizacion
-    from sqlalchemy import func
 
-    # Listas
     total_listas = db.query(ListaCompra).filter(
         ListaCompra.agricultor_id == agricultor.id
     ).count()
@@ -109,7 +109,6 @@ def resumen_agricultor(
         ListaCompra.estado == "publicada"
     ).count()
 
-    # Cotizaciones pendientes
     listas_ids = [l.id for l in db.query(ListaCompra).filter(
         ListaCompra.agricultor_id == agricultor.id
     ).all()]
@@ -119,7 +118,6 @@ def resumen_agricultor(
         Cotizacion.estado == "pendiente"
     ).count() if listas_ids else 0
 
-    # Actividad reciente
     listas_recientes = db.query(ListaCompra).filter(
         ListaCompra.agricultor_id == agricultor.id
     ).order_by(ListaCompra.creado_en.desc()).limit(5).all()
@@ -141,6 +139,7 @@ def resumen_agricultor(
         "actividad_reciente": actividad
     }
 
+
 @router.get("/{lista_id}", response_model=ListaCompraResponse)
 def detalle_lista(
     lista_id: int,
@@ -156,6 +155,7 @@ def detalle_lista(
         raise HTTPException(status_code=404, detail="Lista no encontrada")
     return lista
 
+
 @router.post("/{lista_id}/publicar", response_model=ListaCompraResponse)
 def publicar_lista(
     lista_id: int,
@@ -167,14 +167,18 @@ def publicar_lista(
         ListaCompra.id == lista_id,
         ListaCompra.agricultor_id == agricultor.id
     ).first()
+
     if not lista:
         raise HTTPException(status_code=404, detail="Lista no encontrada")
+
     if lista.estado != "borrador":
-        raise HTTPException(status_code=400, detail="Solo se pueden publicar listas en borrador")
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden publicar listas en borrador"
+        )
 
     lista.estado = "publicada"
 
-    # Alertar a proveedores que tengan los insumos solicitados
     insumo_ids = [item.insumo_id for item in lista.items]
     catalogos = db.query(CatalogoProveedor).filter(
         CatalogoProveedor.insumo_id.in_(insumo_ids),
@@ -193,7 +197,39 @@ def publicar_lista(
 
     db.commit()
     db.refresh(lista)
+
+    # ✅ Notificar a proveedores en tiempo real con threading
+    proveedor_usuario_ids = []
+    for catalogo in catalogos:
+        prov = db.query(ProveedorModel).filter(
+            ProveedorModel.id == catalogo.proveedor_id
+        ).first()
+        if prov:
+            proveedor_usuario_ids.append(prov.usuario_id)
+
+    if proveedor_usuario_ids:
+        ids_copia = list(proveedor_usuario_ids)
+        titulo_copia = lista.titulo
+        lista_id_copia = lista.id
+
+        def notificar():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(manager.broadcast_to_users(
+                ids_copia,
+                {
+                    "tipo": "nueva_solicitud",
+                    "mensaje": f"Nueva solicitud: {titulo_copia}",
+                    "lista_id": lista_id_copia,
+                    "titulo": titulo_copia
+                }
+            ))
+            loop.close()
+
+        threading.Thread(target=notificar, daemon=True).start()
+
     return lista
+
 
 @router.delete("/{lista_id}")
 def eliminar_lista(

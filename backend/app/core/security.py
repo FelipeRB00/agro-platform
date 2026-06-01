@@ -17,3 +17,16 @@ def create_access_token(data: dict) -> str:
 
 def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+
+def decode_token(token: str) -> dict:
+    import jwt as pyjwt
+    from app.core.config import settings
+    try:
+        payload = pyjwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=["HS256"]
+        )
+        return payload
+    except Exception:
+        raise ValueError("Token inválido")

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import { useNotificaciones } from '../hooks/useNotificaciones'
 
 export default function SolicitudesProveedor() {
   const navigate = useNavigate()
@@ -19,12 +20,22 @@ export default function SolicitudesProveedor() {
     { icon: 'settings', label: 'Configuración', path: '/configuracion' },
   ]
 
-  useEffect(() => {
+  // ✅ Función de carga reutilizable
+  const cargarAlertas = useCallback(() => {
     api.get('/alertas/')
       .then(res => setAlertas(res.data))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { cargarAlertas() }, [cargarAlertas])
+
+  // ✅ Recargar automáticamente cuando llega una nueva solicitud por WebSocket
+  useNotificaciones((notif) => {
+    if (notif.tipo === 'nueva_solicitud') {
+      cargarAlertas()
+    }
+  })
 
   const alertasFiltradas = alertas.filter(a => {
     if (filtro === 'nuevas') return !a.leida
