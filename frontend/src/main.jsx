@@ -8,6 +8,7 @@ import NotificacionesToast from './components/NotificacionesToast'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Perfil from './pages/Perfil'
+import Configuracion from './pages/Configuracion'
 
 // Agricultor
 import Dashboard from './pages/Dashboard'
@@ -36,7 +37,7 @@ function HomeRedirect() {
   if (usuario.rol === 'admin') return <Navigate to="/admin/dashboard" />
   return <Navigate to="/login" />
 }
-
+  
 // ✅ Componente wrapper que incluye las notificaciones globales
 function AppContent() {
   const { usuario } = useAuth()
@@ -114,6 +115,12 @@ function AppContent() {
         <Route path="/perfil" element={
           <ProtectedRoute roles={['agricultor', 'proveedor']}>
             <Perfil />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/configuracion" element={
+          <ProtectedRoute roles={['agricultor', 'proveedor']}>
+            <Configuracion />
           </ProtectedRoute>
         } />
 

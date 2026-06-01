@@ -57,6 +57,16 @@ export default function MisListas() {
     }
   }
 
+  const handleDespublicar = async (id) => {
+    if (!confirm('¿Volver esta lista a borrador? Solo es posible si no tiene cotizaciones aún.')) return
+    try {
+      await api.put(`/listas/${id}/despublicar`)
+      setListas(listas.map(l => l.id === id ? { ...l, estado: 'borrador' } : l))
+    } catch (err) {
+      alert(err.response?.data?.detail || 'No se puede modificar esta lista')
+    }
+  }
+
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
       <Sidebar navItems={navItems} tipo="agricultor" />
@@ -117,10 +127,17 @@ export default function MisListas() {
                       </>
                     )}
                     {lista.estado === 'publicada' && (
-                      <button onClick={() => navigate('/cotizaciones', { state: { lista_id: lista.id } })}
-                        className="flex-1 py-2 text-sm font-semibold text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors text-center">
-                        Ver Cotizaciones
-                      </button>
+                      <>S
+                        <button onClick={() => navigate('/cotizaciones', { state: { lista_id: lista.id } })}
+                          className="flex-1 py-2 text-sm font-semibold text-primary border border-primary rounded-lg hover:bg-primary/5 transition-colors text-center">
+                          Ver Cotizaciones
+                        </button>
+                        <button onClick={() => handleDespublicar(lista.id)}
+                          title="Volver a borrador"
+                          className="p-2 text-yellow-600 border border-yellow-300 rounded-lg hover:bg-yellow-50 transition-colors">
+                          <span className="material-symbols-outlined text-sm">undo</span>
+                        </button>
+                      </>
                     )}
                     {lista.estado === 'cerrada' && (
                       <button onClick={() => navigate('/cotizaciones', { state: { lista_id: lista.id } })}

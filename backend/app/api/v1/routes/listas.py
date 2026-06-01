@@ -250,3 +250,37 @@ def eliminar_lista(
     db.delete(lista)
     db.commit()
     return {"message": "Lista eliminada"}
+
+@router.put("/{lista_id}/despublicar")
+def despublicar_lista(
+    lista_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+    lista = db.query(ListaCompra).filter(
+        ListaCompra.id == lista_id,
+        ListaCompra.agricultor_id == agricultor.id
+    ).first()
+    if not lista:
+        raise HTTPException(status_code=404, detail="Lista no encontrada")
+    if lista.estado != "publicada":
+        raise HTTPException(status_code=400, detail="Solo se pueden despublicar listas publicadas")
+
+    # Verificar que no tenga cotizaciones
+    from app.models.cotizacion import Cotizacion
+    cotizaciones = db.query(Cotizacion).filter(
+        Cotizacion.lista_id == lista_id
+    ).count()
+    if cotizaciones > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No puedes modificar esta lista porque ya tiene cotizaciones de proveedores"
+        )
+
+    # Eliminar alertas generadas
+    db.query(Alerta).filter(Alerta.lista_id == lista_id).delete()
+    lista.estado = "borrador"
+    db.commit()
+    db.refresh(lista)
+    return lista
