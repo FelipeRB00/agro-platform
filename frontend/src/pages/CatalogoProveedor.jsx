@@ -12,6 +12,7 @@ const categoriaBadge = {
   semilla: 'bg-yellow-100 text-yellow-800',
   plaguicida: 'bg-red-100 text-red-800',
   herramienta: 'bg-blue-100 text-blue-800',
+  otro: 'bg-gray-100 text-gray-700',
 }
 
 export default function CatalogoProveedor() {
@@ -24,7 +25,16 @@ export default function CatalogoProveedor() {
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
   const [errorModal, setErrorModal] = useState('')
-  const [form, setForm] = useState({ insumo_id: '', precio_referencia: '', stock_disponible: '' })
+
+  // ✅ Nuevo form con nombre libre
+  const [form, setForm] = useState({
+    nombre_libre: '',
+    categoria: 'fertilizante',
+    precio_referencia: '',
+    stock_disponible: ''
+  })
+  const [sugerencias, setSugerencias] = useState([])
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
 
   const navItems = [
     { icon: 'dashboard', label: 'Dashboard', path: '/proveedor/dashboard' },
@@ -47,6 +57,29 @@ export default function CatalogoProveedor() {
   }
 
   useEffect(() => { cargarDatos() }, [])
+
+  // ✅ Autocompletado
+  const handleNombreChange = (valor) => {
+    setForm({ ...form, nombre_libre: valor })
+    if (valor.length >= 2) {
+      const filtradas = insumos.filter(i =>
+        i.nombre.toLowerCase().includes(valor.toLowerCase())
+      )
+      setSugerencias(filtradas.slice(0, 5))
+      setMostrarSugerencias(filtradas.length > 0)
+    } else {
+      setMostrarSugerencias(false)
+    }
+  }
+
+  const seleccionarSugerencia = (insumo) => {
+    setForm({
+      ...form,
+      nombre_libre: insumo.nombre,
+      categoria: insumo.categoria || 'fertilizante'
+    })
+    setMostrarSugerencias(false)
+  }
 
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -72,8 +105,9 @@ export default function CatalogoProveedor() {
     }
   }
 
+  // ✅ Guardar con nombre libre
   const handleGuardar = async () => {
-    if (!form.insumo_id || !form.precio_referencia || !form.stock_disponible) {
+    if (!form.nombre_libre.trim() || !form.precio_referencia || !form.stock_disponible) {
       setErrorModal('Completa todos los campos')
       return
     }
@@ -81,18 +115,26 @@ export default function CatalogoProveedor() {
     setErrorModal('')
     try {
       const res = await api.post('/catalogo/', {
-        insumo_id: parseInt(form.insumo_id),
+        nombre_libre: form.nombre_libre.trim(),
+        categoria: form.categoria,
         precio_referencia: parseFloat(form.precio_referencia),
         stock_disponible: parseInt(form.stock_disponible)
       })
       setProductos([...productos, res.data])
-      setForm({ insumo_id: '', precio_referencia: '', stock_disponible: '' })
+      setForm({ nombre_libre: '', categoria: 'fertilizante', precio_referencia: '', stock_disponible: '' })
       setModalAbierto(false)
     } catch (err) {
       setErrorModal(err.response?.data?.detail || 'Error al guardar')
     } finally {
       setGuardando(false)
     }
+  }
+
+  const cerrarModal = () => {
+    setModalAbierto(false)
+    setErrorModal('')
+    setMostrarSugerencias(false)
+    setForm({ nombre_libre: '', categoria: 'fertilizante', precio_referencia: '', stock_disponible: '' })
   }
 
   return (
@@ -177,11 +219,13 @@ export default function CatalogoProveedor() {
                       <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                         <td className="p-4">
                           <p className="font-semibold text-sm text-on-surface">{p.nombre}</p>
-                          <p className="text-xs text-on-surface-variant">{p.unidad_medida}</p>
+                          {p.unidad_medida && (
+                            <p className="text-xs text-on-surface-variant">{p.unidad_medida}</p>
+                          )}
                         </td>
                         <td className="p-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${categoriaBadge[p.categoria] || 'bg-gray-100 text-gray-700'}`}>
-                            {p.categoria}
+                            {p.categoria || 'otro'}
                           </span>
                         </td>
                         <td className="p-4 text-sm font-semibold">${p.precio_referencia.toLocaleString('es-CL')}</td>
@@ -215,23 +259,65 @@ export default function CatalogoProveedor() {
           <div className="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden border border-outline-variant/30">
             <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center">
               <h3 className="font-bold text-primary text-lg">Añadir Nuevo Producto</h3>
-              <button onClick={() => { setModalAbierto(false); setErrorModal('') }}
+              <button onClick={cerrarModal}
                 className="text-on-surface-variant hover:text-on-surface">
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
+
             <div className="p-6 space-y-4">
               {errorModal && <ErrorMessage mensaje={errorModal} />}
+
+              {/* ✅ Campo de texto libre con autocompletado */}
               <div>
-                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Insumo</label>
-                <select value={form.insumo_id} onChange={e => setForm({ ...form, insumo_id: e.target.value })}
-                  className="w-full px-4 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary appearance-none">
-                  <option value="">Seleccionar insumo...</option>
-                  {insumos.map(i => (
-                    <option key={i.id} value={i.id}>{i.nombre} ({i.categoria})</option>
-                  ))}
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">
+                  Nombre del Producto
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Ej: Urea 46%, Glifosato, Semilla Maíz..."
+                    value={form.nombre_libre}
+                    onChange={e => handleNombreChange(e.target.value)}
+                    onBlur={() => setTimeout(() => setMostrarSugerencias(false), 150)}
+                    className="w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary"
+                  />
+                  {/* Dropdown de sugerencias */}
+                  {mostrarSugerencias && (
+                    <ul className="absolute z-50 w-full bg-white border border-outline-variant rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                      {sugerencias.map(s => (
+                        <li key={s.id}
+                          onMouseDown={() => seleccionarSugerencia(s)}
+                          className="px-4 py-2.5 text-sm hover:bg-gray-50 cursor-pointer flex justify-between items-center border-b border-outline-variant/20 last:border-0">
+                          <span className="font-medium">{s.nombre}</span>
+                          <span className="text-xs text-on-surface-variant capitalize bg-gray-100 px-2 py-0.5 rounded">
+                            {s.categoria}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Escribe para ver sugerencias o ingresa un nombre propio
+                </p>
+              </div>
+
+              {/* Categoría */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Categoría</label>
+                <select value={form.categoria}
+                  onChange={e => setForm({ ...form, categoria: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary appearance-none bg-white">
+                  <option value="fertilizante">Fertilizante</option>
+                  <option value="semilla">Semilla</option>
+                  <option value="plaguicida">Plaguicida</option>
+                  <option value="herramienta">Herramienta</option>
+                  <option value="otro">Otro</option>
                 </select>
               </div>
+
+              {/* Precio y Stock */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-1">Precio Referencial ($)</label>
@@ -240,7 +326,7 @@ export default function CatalogoProveedor() {
                     <input type="number" placeholder="0.00"
                       value={form.precio_referencia}
                       onChange={e => setForm({ ...form, precio_referencia: e.target.value })}
-                      className="w-full pl-8 pr-4 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
+                      className="w-full pl-8 pr-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
                   </div>
                 </div>
                 <div>
@@ -248,12 +334,13 @@ export default function CatalogoProveedor() {
                   <input type="number" placeholder="0"
                     value={form.stock_disponible}
                     onChange={e => setForm({ ...form, stock_disponible: e.target.value })}
-                    className="w-full px-4 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
+                    className="w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
                 </div>
               </div>
             </div>
+
             <div className="px-6 py-4 border-t border-outline-variant/30 bg-gray-50 flex justify-end gap-3">
-              <button onClick={() => { setModalAbierto(false); setErrorModal('') }}
+              <button onClick={cerrarModal}
                 className="px-5 py-2 rounded-lg text-sm font-semibold text-primary border border-outline-variant hover:bg-gray-100">
                 Cancelar
               </button>

@@ -3,9 +3,15 @@ from typing import Optional
 from datetime import datetime
 
 class CatalogoCreate(BaseModel):
-    insumo_id: int
+    insumo_id: Optional[int] = None
+    nombre_libre: Optional[str] = None
+    categoria: Optional[str] = None
     precio_referencia: float
     stock_disponible: int
+
+    def validate_insumo(self):
+        if not self.insumo_id and not self.nombre_libre:
+            raise ValueError("Debes indicar un insumo_id o un nombre_libre")
 
 class CatalogoUpdate(BaseModel):
     precio_referencia: Optional[float] = None
@@ -14,12 +20,15 @@ class CatalogoUpdate(BaseModel):
 
 class CatalogoResponse(BaseModel):
     id: int
-    insumo_id: int
+    insumo_id: Optional[int] = None
+    nombre_libre: Optional[str] = None
+    nombre: Optional[str] = None
+    categoria: Optional[str] = None
+    unidad_medida: Optional[str] = None
     precio_referencia: float
     stock_disponible: int
     activo: bool
     actualizado_en: datetime
-    insumo: Optional[dict] = None
 
     class Config:
         from_attributes = True

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, Numeric, Boolean, DateTime, ForeignKey
+
+from sqlalchemy import Column, Integer, Numeric, Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.database import Base
@@ -13,6 +14,9 @@ class CatalogoProveedor(Base):
     stock_disponible = Column(Integer)
     activo = Column(Boolean, default=True)
     actualizado_en = Column(DateTime, default=datetime.utcnow)
+
+    nombre_libre = Column(String, nullable=True)
+    categoria = Column(String, nullable=True)
 
     proveedor = relationship("Proveedor", back_populates="catalogo")
     insumo = relationship("Insumo", back_populates="catalogo")

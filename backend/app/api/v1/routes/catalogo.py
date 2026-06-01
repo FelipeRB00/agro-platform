@@ -32,13 +32,23 @@ def mi_catalogo(
 
     resultado = []
     for c in catalogos:
-        insumo = db.query(Insumo).filter(Insumo.id == c.insumo_id).first()
+        if c.insumo_id:
+            insumo = db.query(Insumo).filter(Insumo.id == c.insumo_id).first()
+            nombre = insumo.nombre if insumo else ""
+            categoria = insumo.categoria if insumo else ""
+            unidad = insumo.unidad_medida if insumo else ""
+        else:
+            nombre = c.nombre_libre or ""
+            categoria = c.categoria or ""
+            unidad = ""
+
         resultado.append({
             "id": c.id,
             "insumo_id": c.insumo_id,
-            "nombre": insumo.nombre if insumo else "",
-            "categoria": insumo.categoria if insumo else "",
-            "unidad_medida": insumo.unidad_medida if insumo else "",
+            "nombre_libre": c.nombre_libre,
+            "nombre": nombre,
+            "categoria": categoria,
+            "unidad_medida": unidad,
             "precio_referencia": float(c.precio_referencia or 0),
             "stock_disponible": c.stock_disponible or 0,
             "activo": c.activo,
@@ -54,31 +64,48 @@ def agregar_producto(
 ):
     proveedor = get_proveedor(db, current_user)
 
-    # Validar precio
     if data.precio_referencia <= 0:
         raise HTTPException(status_code=400, detail="El precio debe ser mayor a 0")
-
-    # Validar stock
     if data.stock_disponible < 0:
         raise HTTPException(status_code=400, detail="El stock no puede ser negativo")
+    if not data.insumo_id and not data.nombre_libre:
+        raise HTTPException(status_code=400, detail="Debes indicar un insumo o escribir un nombre")
 
-    # Verificar que el insumo existe
-    insumo = db.query(Insumo).filter(Insumo.id == data.insumo_id).first()
-    if not insumo:
-        raise HTTPException(status_code=404, detail="Insumo no encontrado")
+    # Nombre final del producto
+    if data.insumo_id:
+        insumo = db.query(Insumo).filter(Insumo.id == data.insumo_id).first()
+        if not insumo:
+            raise HTTPException(status_code=404, detail="Insumo no encontrado")
+        nombre_final = insumo.nombre
+        categoria_final = insumo.categoria
+        unidad_final = insumo.unidad_medida
+    else:
+        insumo = None
+        nombre_final = data.nombre_libre.strip()
+        categoria_final = data.categoria or "otro"
+        unidad_final = ""
 
-    # Verificar que no esté duplicado
-    existente = db.query(CatalogoProveedor).filter(
-        CatalogoProveedor.proveedor_id == proveedor.id,
-        CatalogoProveedor.insumo_id == data.insumo_id
-    ).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Este insumo ya está en tu catálogo")
+    # Verificar duplicado por nombre
+    existentes = db.query(CatalogoProveedor).filter(
+        CatalogoProveedor.proveedor_id == proveedor.id
+    ).all()
+
+    for e in existentes:
+        nombre_e = ""
+        if e.insumo_id:
+            ins = db.query(Insumo).filter(Insumo.id == e.insumo_id).first()
+            nombre_e = ins.nombre if ins else ""
+        else:
+            nombre_e = e.nombre_libre or ""
+        if nombre_e.lower() == nombre_final.lower():
+            raise HTTPException(status_code=400, detail="Este producto ya está en tu catálogo")
 
     try:
         catalogo = CatalogoProveedor(
             proveedor_id=proveedor.id,
-            insumo_id=data.insumo_id,
+            insumo_id=data.insumo_id if data.insumo_id else None,
+            nombre_libre=nombre_final if not data.insumo_id else None,
+            categoria=categoria_final if not data.insumo_id else None,
             precio_referencia=data.precio_referencia,
             stock_disponible=data.stock_disponible,
             activo=True
@@ -90,19 +117,19 @@ def agregar_producto(
         return {
             "id": catalogo.id,
             "insumo_id": catalogo.insumo_id,
-            "nombre": insumo.nombre,
-            "categoria": insumo.categoria,
-            "unidad_medida": insumo.unidad_medida,
+            "nombre_libre": catalogo.nombre_libre,
+            "nombre": nombre_final,
+            "categoria": categoria_final,
+            "unidad_medida": unidad_final,
             "precio_referencia": float(catalogo.precio_referencia),
             "stock_disponible": catalogo.stock_disponible,
             "activo": catalogo.activo,
             "actualizado_en": catalogo.actualizado_en
         }
-
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al agregar producto: {str(e)}")
-
+    
 @router.put("/{catalogo_id}")
 def actualizar_producto(
     catalogo_id: int,
