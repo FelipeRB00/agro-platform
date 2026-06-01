@@ -9,6 +9,7 @@ from app.models.alerta import Alerta
 from app.schemas.lista_compra import ListaCompraCreate, ListaCompraResponse
 from app.core.dependencies import get_current_user, require_rol
 from app.models.usuario import Usuario
+from app.models.insumo import Insumo
 
 router = APIRouter(prefix="/listas", tags=["Listas de Compra"])
 
