@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List
 
+
 from app.db.database import get_db
 from app.models.cotizacion import Cotizacion, ItemCotizacion
 from app.models.lista_compra import ListaCompra, ItemLista
@@ -14,6 +15,7 @@ from app.schemas.cotizacion import CotizacionCreate, CotizacionResponse
 from app.core.dependencies import require_rol
 from app.models.usuario import Usuario
 from app.core.websocket_manager import manager
+from app.models.comision import Comision
 import asyncio
 import threading
 
@@ -344,6 +346,60 @@ def cotizaciones_por_lista(
 
     return resultado
 
+@router.get("/cotizaciones/{cotizacion_id}/desglose-pago", tags=["Pagos"])
+def desglose_pago(
+    cotizacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    agricultor = get_agricultor(db, current_user)
+    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    lista = db.query(ListaCompra).filter(
+        ListaCompra.id == cotizacion.lista_id,
+        ListaCompra.agricultor_id == agricultor.id
+    ).first()
+    if not lista:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    proveedor = db.query(Proveedor).filter(Proveedor.id == cotizacion.proveedor_id).first()
+
+    # Items detallados
+    items = []
+    for i in cotizacion.items:
+        item_lista = db.query(ItemLista).filter(ItemLista.id == i.item_lista_id).first()
+        insumo = db.query(Insumo).filter(Insumo.id == item_lista.insumo_id).first() if item_lista else None
+        items.append({
+            "nombre": insumo.nombre if insumo else "",
+            "precio_unitario": float(i.precio_unitario),
+            "cantidad": float(i.cantidad_ofrecida),
+            "subtotal": float(i.subtotal or 0)
+        })
+
+    subtotal = sum(float(i.subtotal or 0) for i in cotizacion.items)
+    COMISION_PCT = 0.005
+    IVA_PCT = 0.19
+
+    comision_agricultor = round(subtotal * COMISION_PCT, 0)
+    iva = round(subtotal * IVA_PCT, 0)
+    total = subtotal + iva + comision_agricultor
+
+    return {
+        "cotizacion_id": cotizacion.id,
+        "lista_titulo": lista.titulo,
+        "proveedor": proveedor.nombre_empresa if proveedor else "Desconocido",
+        "agricultor": current_user.nombre,
+        "estado": cotizacion.estado,
+        "items": items,
+        "subtotal": subtotal,
+        "comision_agricultor": comision_agricultor,
+        "comision_porcentaje": COMISION_PCT * 100,
+        "iva": iva,
+        "iva_porcentaje": IVA_PCT * 100,
+        "total": total
+    }
 
 # ─────────────────────────────────────────────────────────────
 # ACEPTAR COTIZACIÓN
@@ -417,6 +473,26 @@ def aceptar_cotizacion(
         Cotizacion.lista_id == cotizacion.lista_id,
         Cotizacion.id != cotizacion_id
     ).update({"estado": "rechazada"})
+    
+    # ─── Registrar comisión ──────────────────────────────────────
+    monto_venta = sum(float(i.subtotal or 0) for i in cotizacion.items)
+    comision_agricultor = round(monto_venta * 0.005, 0)
+    comision_proveedor = round(monto_venta * 0.005, 0)
+    iva = round(monto_venta * 0.19, 0)
+
+    comision = Comision(
+        cotizacion_id=cotizacion.id,
+        lista_id=lista.id,
+        agricultor_id=agricultor.id,
+        proveedor_id=cotizacion.proveedor_id,
+        monto_venta=monto_venta,
+        comision_agricultor=comision_agricultor,
+        comision_proveedor=comision_proveedor,
+        comision_total=comision_agricultor + comision_proveedor,
+        iva=iva,
+        total_con_iva=monto_venta + iva
+    )
+    db.add(comision)
 
     lista.estado = "cerrada"
     db.commit()

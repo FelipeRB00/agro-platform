@@ -45,7 +45,7 @@ export default function Cotizaciones() {
     setCotizaciones([])
     api.get(`/cotizaciones/por-lista/${lista.id}`)
       .then(res => setCotizaciones(res.data))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingCotizaciones(false))
   }
 
@@ -64,20 +64,39 @@ export default function Cotizaciones() {
           seleccionarLista(publicadas[0])
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingListas(false))
   }, [])
 
   const handleAceptar = async (cotizacionId) => {
     if (!confirm('¿Aceptar esta cotización? Las demás serán rechazadas automáticamente.')) return
+
     setAceptando(cotizacionId)
+
     try {
       await api.put(`/cotizaciones/${cotizacionId}/aceptar`)
+
       setMensaje('✅ ¡Cotización aceptada! La lista ha sido cerrada.')
+
       const res = await api.get(`/cotizaciones/por-lista/${listaSeleccionada.id}`)
       setCotizaciones(res.data)
-      setListas(listas.map(l => l.id === listaSeleccionada.id ? { ...l, estado: 'cerrada' } : l))
-      setListaSeleccionada(prev => ({ ...prev, estado: 'cerrada' }))
+
+      setListas(
+        listas.map(l =>
+          l.id === listaSeleccionada.id
+            ? { ...l, estado: 'cerrada' }
+            : l
+        )
+      )
+      
+      setListaSeleccionada(prev => ({
+        ...prev,
+        estado: 'cerrada'
+      }))
+
+      // Redirigir a la pantalla de pago
+      navigate(`/pago/${cotizacionId}`)
+
     } catch (err) {
       alert(err.response?.data?.detail || 'Error al aceptar cotización')
     } finally {

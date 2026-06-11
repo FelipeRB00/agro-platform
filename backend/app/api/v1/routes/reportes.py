@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from io import BytesIO
@@ -265,5 +265,144 @@ def exportar_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f"attachment; filename=historial_pedidos_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        }
+    )
+    
+@router.get("/comprobante/{cotizacion_id}")
+def comprobante_pdf(
+    cotizacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("agricultor"))
+):
+    from app.models.cotizacion import Cotizacion
+    from app.models.lista_compra import ListaCompra, ItemLista
+    from app.models.proveedor import Proveedor
+    from app.models.insumo import Insumo
+
+    agricultor = db.query(Agricultor).filter(
+        Agricultor.usuario_id == current_user.id
+    ).first()
+
+    cotizacion = db.query(Cotizacion).filter(Cotizacion.id == cotizacion_id).first()
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+
+    lista = db.query(ListaCompra).filter(ListaCompra.id == cotizacion.lista_id).first()
+    proveedor = db.query(Proveedor).filter(Proveedor.id == cotizacion.proveedor_id).first()
+
+    items = []
+    for i in cotizacion.items:
+        item_lista = db.query(ItemLista).filter(ItemLista.id == i.item_lista_id).first()
+        insumo = db.query(Insumo).filter(Insumo.id == item_lista.insumo_id).first() if item_lista else None
+        items.append({
+            "nombre": insumo.nombre if insumo else "",
+            "precio": float(i.precio_unitario),
+            "cantidad": float(i.cantidad_ofrecida),
+            "subtotal": float(i.subtotal or 0)
+        })
+
+    subtotal = sum(it["subtotal"] for it in items)
+    comision = round(subtotal * 0.005, 0)
+    iva = round(subtotal * 0.19, 0)
+    total = subtotal + iva + comision
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter,
+        rightMargin=40, leftMargin=40, topMargin=50, bottomMargin=40)
+
+    styles = getSampleStyleSheet()
+    elements = []
+
+    titulo_style = ParagraphStyle('t', parent=styles['Title'], fontSize=20,
+        textColor=colors.HexColor('#1a3a1a'), spaceAfter=4, alignment=TA_CENTER)
+    sub_style = ParagraphStyle('s', parent=styles['Normal'], fontSize=10,
+        textColor=colors.HexColor('#666666'), spaceAfter=4, alignment=TA_CENTER)
+
+    elements.append(Paragraph("CultivaTech", titulo_style))
+    elements.append(Paragraph("Comprobante de Compra", sub_style))
+    elements.append(Paragraph("(Documento interno sin validez tributaria)", sub_style))
+    elements.append(Spacer(1, 20))
+
+    # Datos
+    info_data = [
+        ["Comprobante N°:", f"CT-{cotizacion.id:05d}"],
+        ["Fecha:", datetime.now().strftime('%d/%m/%Y %H:%M')],
+        ["Agricultor:", current_user.nombre],
+        ["Proveedor:", proveedor.nombre_empresa if proveedor else "—"],
+        ["Lista:", lista.titulo if lista else "—"],
+    ]
+    info_table = Table(info_data, colWidths=[120, 350])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1a3a1a')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 20))
+
+    # Tabla items
+    data = [["Producto", "Precio Unit.", "Cantidad", "Subtotal"]]
+    for it in items:
+        data.append([
+            it["nombre"],
+            f"${it['precio']:,.0f}",
+            f"{it['cantidad']:,.0f}",
+            f"${it['subtotal']:,.0f}"
+        ])
+
+    tabla = Table(data, colWidths=[200, 100, 80, 90])
+    tabla.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a3a1a')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f4f8f2')]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(tabla)
+    elements.append(Spacer(1, 20))
+
+    # Totales
+    totales_data = [
+        ["Subtotal:", f"${subtotal:,.0f}"],
+        ["Comisión plataforma (0.5%):", f"${comision:,.0f}"],
+        ["IVA (19%):", f"${iva:,.0f}"],
+        ["TOTAL:", f"${total:,.0f}"],
+    ]
+    totales_table = Table(totales_data, colWidths=[330, 140])
+    totales_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -2), 'Helvetica'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -2), 10),
+        ('FONTSIZE', (0, -1), (-1, -1), 13),
+        ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ('TEXTCOLOR', (0, -1), (-1, -1), colors.HexColor('#1a3a1a')),
+        ('LINEABOVE', (0, -1), (-1, -1), 1, colors.HexColor('#1a3a1a')),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(totales_table)
+    elements.append(Spacer(1, 30))
+
+    pie = ParagraphStyle('pie', parent=styles['Normal'], fontSize=8,
+        textColor=colors.HexColor('#999999'), alignment=TA_CENTER)
+    elements.append(Paragraph(
+        "Este documento es un comprobante interno generado por CultivaTech y no constituye "
+        "una boleta o factura electrónica válida ante el Servicio de Impuestos Internos (SII).",
+        pie
+    ))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=comprobante_CT-{cotizacion.id:05d}.pdf"
         }
     )
