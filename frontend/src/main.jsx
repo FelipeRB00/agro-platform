@@ -25,6 +25,7 @@ import CatalogoProveedor from './pages/CatalogoProveedor'
 import ResponderCotizacion from './pages/ResponderCotizacion'
 
 // Admin
+import Usuarios from './pages/Usuarios'
 import DashboardAdmin from './pages/DashboardAdmin'
 
 import './index.css'
@@ -37,7 +38,7 @@ function HomeRedirect() {
   if (usuario.rol === 'admin') return <Navigate to="/admin/dashboard" />
   return <Navigate to="/login" />
 }
-  
+
 // ✅ Componente wrapper que incluye las notificaciones globales
 function AppContent() {
   const { usuario } = useAuth()
@@ -110,6 +111,11 @@ function AppContent() {
             <DashboardAdmin />
           </ProtectedRoute>
         } />
+        <Route path="/admin/usuarios" element={
+          <ProtectedRoute roles={['admin']}>
+            <Usuarios />
+          </ProtectedRoute>
+        } />
 
         {/* Perfil */}
         <Route path="/perfil" element={
@@ -117,7 +123,7 @@ function AppContent() {
             <Perfil />
           </ProtectedRoute>
         } />
-        
+
         <Route path="/configuracion" element={
           <ProtectedRoute roles={['agricultor', 'proveedor']}>
             <Configuracion />

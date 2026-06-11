@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import Sidebar from '../components/Sidebar'
@@ -16,6 +16,7 @@ export default function ResponderCotizacion() {
   const [enviado, setEnviado] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [catalogo, setCatalogo] = useState([])
 
   const navItems = [
     { icon: 'dashboard', label: 'Dashboard', path: '/proveedor/dashboard' },
@@ -23,6 +24,35 @@ export default function ResponderCotizacion() {
     { icon: 'inventory_2', label: 'Catálogo', path: '/proveedor/catalogo' },
     { icon: 'settings', label: 'Configuración', path: '/configuracion' },
   ]
+
+  // Buscar producto en el catálogo por nombre del insumo
+  const buscarEnCatalogo = (nombreInsumo) => {
+    if (!nombreInsumo) return null
+    return catalogo.find(c =>
+      (c.nombre || '').toLowerCase() === nombreInsumo.toLowerCase()
+    )
+  }
+
+  // Cargar catálogo del proveedor y pre-rellenar precios
+  useEffect(() => {
+    if (!alerta) return
+    api.get('/catalogo/')
+      .then(res => {
+        setCatalogo(res.data)
+        // Pre-rellenar precios con el precio de referencia del catálogo
+        const preciosIniciales = {}
+        alerta.items.forEach(item => {
+          const prod = res.data.find(c =>
+            (c.nombre || '').toLowerCase() === (item.insumo_nombre || '').toLowerCase()
+          )
+          if (prod && prod.precio_referencia) {
+            preciosIniciales[item.id] = prod.precio_referencia
+          }
+        })
+        setPrecios(preciosIniciales)
+      })
+      .catch(() => {})
+  }, [alerta])
 
   if (!alerta) {
     return (
@@ -128,20 +158,38 @@ export default function ResponderCotizacion() {
 
               <h3 className="text-xs font-semibold text-primary uppercase tracking-wider mb-4">Ítems Solicitados</h3>
               <div className="flex flex-col gap-3">
-                {alerta.items.map(item => (
-                  <div key={item.id} className="p-4 rounded-lg bg-gray-50 border border-gray-100">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-semibold text-on-surface">{item.insumo_nombre}</h4>
-                        <p className="text-xs text-on-surface-variant capitalize">{item.insumo_categoria}</p>
+                {alerta.items.map(item => {
+                  const prod = buscarEnCatalogo(item.insumo_nombre)
+                  return (
+                    <div key={item.id} className="p-4 rounded-lg bg-gray-50 border border-gray-100">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-semibold text-on-surface">{item.insumo_nombre}</h4>
+                          <p className="text-xs text-on-surface-variant capitalize">{item.insumo_categoria}</p>
+                        </div>
+                        <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-md text-sm font-bold shrink-0 ml-2">
+                          {item.cantidad} {item.unidad_medida}
+                        </span>
                       </div>
-                      <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-md text-sm font-bold shrink-0 ml-2">
-                        {item.cantidad} {item.unidad_medida}
-                      </span>
+                      {/* Info del catálogo */}
+                      {prod ? (
+                        <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-4 text-xs">
+                          <span className="text-on-surface-variant">
+                            Tu precio: <span className="font-semibold text-primary">${prod.precio_referencia.toLocaleString('es-CL')}</span>
+                          </span>
+                          <span className="text-on-surface-variant">
+                            Stock: <span className="font-semibold text-primary">{prod.stock_disponible}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="mt-2 pt-2 border-t border-gray-200 text-xs text-amber-600">
+                          No tienes este producto en tu catálogo
+                        </p>
+                      )}
+                      {item.nota && <p className="text-xs text-on-surface-variant mt-2 italic">"{item.nota}"</p>}
                     </div>
-                    {item.nota && <p className="text-xs text-on-surface-variant mt-2 italic">"{item.nota}"</p>}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -150,41 +198,64 @@ export default function ResponderCotizacion() {
               <h2 className="text-xl font-bold text-primary mb-6 pb-4 border-b border-outline-variant/30">Tu Cotización</h2>
 
               <form onSubmit={handleEnviar} className="flex flex-col gap-5">
-                {alerta.items.map(item => (
-                  <div key={item.id} className="p-5 border border-outline-variant/30 rounded-lg relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
-                    <h4 className="font-semibold text-sm text-on-surface mb-4">{item.insumo_nombre}</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-on-surface-variant mb-1">Precio Unitario</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">$</span>
-                          <input type="number" placeholder="0.00" required min="0.01" step="0.01"
-                            value={precios[item.id] || ''}
-                            onChange={e => setPrecios({ ...precios, [item.id]: e.target.value })}
-                            className="w-full pl-8 pr-3 py-2.5 border border-outline-variant rounded-lg focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none text-sm" />
+                {alerta.items.map(item => {
+                  const prod = buscarEnCatalogo(item.insumo_nombre)
+                  const stock = prod ? prod.stock_disponible : null
+                  const cantidadIngresada = parseFloat(cantidades[item.id] || 0)
+                  const excedeStock = stock !== null && cantidadIngresada > stock
+
+                  return (
+                    <div key={item.id} className="p-5 border border-outline-variant/30 rounded-lg relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+                      <h4 className="font-semibold text-sm text-on-surface mb-4">{item.insumo_nombre}</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-on-surface-variant mb-1">
+                            Precio Unitario
+                            {prod && (
+                              <span className="ml-1 text-primary font-normal">(cat: ${prod.precio_referencia.toLocaleString('es-CL')})</span>
+                            )}
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">$</span>
+                            <input type="number" placeholder="0.00" required min="0.01" step="0.01"
+                              value={precios[item.id] || ''}
+                              onChange={e => setPrecios({ ...precios, [item.id]: e.target.value })}
+                              className="w-full pl-8 pr-3 py-2.5 border border-outline-variant rounded-lg focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none text-sm" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-on-surface-variant mb-1">
+                            Cantidad Ofrecida
+                            {stock !== null && (
+                              <span className="ml-1 text-primary font-normal">(stock: {stock})</span>
+                            )}
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input type="number" placeholder={item.cantidad} required min="0.01" step="0.01"
+                              value={cantidades[item.id] || ''}
+                              onChange={e => setCantidades({ ...cantidades, [item.id]: e.target.value })}
+                              className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 outline-none text-sm
+                                ${excedeStock
+                                  ? 'border-red-400 focus:ring-red-200 focus:border-red-400'
+                                  : 'border-outline-variant focus:ring-secondary/20 focus:border-secondary'}`} />
+                            <span className="text-xs text-on-surface-variant shrink-0">{item.unidad_medida}</span>
+                          </div>
+                          {excedeStock && (
+                            <p className="text-xs text-red-500 mt-1">Supera tu stock disponible ({stock})</p>
+                          )}
                         </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-on-surface-variant mb-1">Cantidad Disponible</label>
-                        <div className="flex items-center gap-2">
-                          <input type="number" placeholder={item.cantidad} required min="0.01" step="0.01"
-                            value={cantidades[item.id] || ''}
-                            onChange={e => setCantidades({ ...cantidades, [item.id]: e.target.value })}
-                            className="w-full px-3 py-2.5 border border-outline-variant rounded-lg focus:ring-2 focus:ring-secondary/20 focus:border-secondary outline-none text-sm" />
-                          <span className="text-xs text-on-surface-variant shrink-0">{item.unidad_medida}</span>
+                      {precios[item.id] && cantidades[item.id] && (
+                        <div className="mt-3 text-right text-sm text-on-surface-variant">
+                          Subtotal: <span className="font-bold text-primary">
+                            ${(parseFloat(precios[item.id]) * parseFloat(cantidades[item.id])).toLocaleString('es-CL')}
+                          </span>
                         </div>
-                      </div>
+                      )}
                     </div>
-                    {precios[item.id] && cantidades[item.id] && (
-                      <div className="mt-3 text-right text-sm text-on-surface-variant">
-                        Subtotal: <span className="font-bold text-primary">
-                          ${(parseFloat(precios[item.id]) * parseFloat(cantidades[item.id])).toLocaleString('es-CL')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
 
                 {calcularTotal() > 0 && (
                   <div className="bg-secondary-container/20 border border-secondary-container rounded-lg p-4 flex justify-between items-center">

@@ -179,11 +179,28 @@ def publicar_lista(
 
     lista.estado = "publicada"
 
+    # Obtener insumos de la lista: ids y nombres
     insumo_ids = [item.insumo_id for item in lista.items]
-    catalogos = db.query(CatalogoProveedor).filter(
-        CatalogoProveedor.insumo_id.in_(insumo_ids),
+    nombres_insumos = []
+    for item in lista.items:
+        ins = db.query(Insumo).filter(Insumo.id == item.insumo_id).first()
+        if ins:
+            nombres_insumos.append(ins.nombre.lower())
+
+    # Buscar en TODOS los catálogos activos y hacer match por insumo_id O por nombre
+    todos_catalogos = db.query(CatalogoProveedor).filter(
         CatalogoProveedor.activo == True
     ).all()
+
+    catalogos = []
+    for cat in todos_catalogos:
+        # Match por insumo_id (producto vinculado al catálogo general)
+        if cat.insumo_id and cat.insumo_id in insumo_ids:
+            catalogos.append(cat)
+            continue
+        # Match por nombre libre (producto de texto libre)
+        if cat.nombre_libre and cat.nombre_libre.lower() in nombres_insumos:
+            catalogos.append(cat)
 
     proveedores_alertados = set()
     for catalogo in catalogos:
@@ -198,7 +215,7 @@ def publicar_lista(
     db.commit()
     db.refresh(lista)
 
-    # ✅ Notificar a proveedores en tiempo real con threading
+    # Notificar a proveedores en tiempo real con threading
     proveedor_usuario_ids = []
     for catalogo in catalogos:
         prov = db.query(ProveedorModel).filter(
@@ -208,7 +225,7 @@ def publicar_lista(
             proveedor_usuario_ids.append(prov.usuario_id)
 
     if proveedor_usuario_ids:
-        ids_copia = list(proveedor_usuario_ids)
+        ids_copia = list(set(proveedor_usuario_ids))
         titulo_copia = lista.titulo
         lista_id_copia = lista.id
 
@@ -251,6 +268,7 @@ def eliminar_lista(
     db.commit()
     return {"message": "Lista eliminada"}
 
+
 @router.put("/{lista_id}/despublicar")
 def despublicar_lista(
     lista_id: int,
@@ -267,7 +285,6 @@ def despublicar_lista(
     if lista.estado != "publicada":
         raise HTTPException(status_code=400, detail="Solo se pueden despublicar listas publicadas")
 
-    # Verificar que no tenga cotizaciones
     from app.models.cotizacion import Cotizacion
     cotizaciones = db.query(Cotizacion).filter(
         Cotizacion.lista_id == lista_id
@@ -278,7 +295,6 @@ def despublicar_lista(
             detail="No puedes modificar esta lista porque ya tiene cotizaciones de proveedores"
         )
 
-    # Eliminar alertas generadas
     db.query(Alerta).filter(Alerta.lista_id == lista_id).delete()
     lista.estado = "borrador"
     db.commit()
