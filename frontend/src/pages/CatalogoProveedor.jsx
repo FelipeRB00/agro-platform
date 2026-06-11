@@ -6,6 +6,7 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const categoriaBadge = {
   fertilizante: 'bg-green-100 text-green-800',
@@ -26,7 +27,14 @@ export default function CatalogoProveedor() {
   const [error, setError] = useState('')
   const [errorModal, setErrorModal] = useState('')
 
-  // ✅ Nuevo form con nombre libre
+  // Estados de edición
+  const [modalEditar, setModalEditar] = useState(false)
+  const [productoEditar, setProductoEditar] = useState(null)
+  const [formEditar, setFormEditar] = useState({ precio_referencia: '', stock_disponible: '' })
+  const [guardandoEdit, setGuardandoEdit] = useState(false)
+  const [errorEdit, setErrorEdit] = useState('')
+
+  // Form añadir con nombre libre
   const [form, setForm] = useState({
     nombre_libre: '',
     categoria: 'fertilizante',
@@ -53,12 +61,11 @@ export default function CatalogoProveedor() {
 
     api.get('/insumos/')
       .then(res => setInsumos(res.data))
-      .catch(() => {})
+      .catch(() => { })
   }
 
   useEffect(() => { cargarDatos() }, [])
 
-  // ✅ Autocompletado
   const handleNombreChange = (valor) => {
     setForm({ ...form, nombre_libre: valor })
     if (valor.length >= 2) {
@@ -95,17 +102,26 @@ export default function CatalogoProveedor() {
     }
   }
 
-  const eliminar = async (id) => {
-    if (!confirm('¿Eliminar este producto del catálogo?')) return
-    try {
-      await api.delete(`/catalogo/${id}`)
-      setProductos(productos.filter(p => p.id !== id))
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Error al eliminar')
-    }
+  const eliminar = (id) => {
+    const producto = productos.find(p => p.id === id)
+    setDialog({
+      abierto: true,
+      titulo: 'Eliminar Producto',
+      mensaje: `¿Estás seguro que deseas eliminar "${producto?.nombre}" de tu catálogo? Esta acción no se puede deshacer.`,
+      tipo: 'danger',
+      confirmText: 'Sí, eliminar',
+      onConfirm: async () => {
+        setDialog(d => ({ ...d, abierto: false }))
+        try {
+          await api.delete(`/catalogo/${id}`)
+          setProductos(productos.filter(p => p.id !== id))
+        } catch (err) {
+          setError(err.response?.data?.detail || 'Error al eliminar')
+        }
+      }
+    })
   }
 
-  // ✅ Guardar con nombre libre
   const handleGuardar = async () => {
     if (!form.nombre_libre.trim() || !form.precio_referencia || !form.stock_disponible) {
       setErrorModal('Completa todos los campos')
@@ -135,6 +151,47 @@ export default function CatalogoProveedor() {
     setErrorModal('')
     setMostrarSugerencias(false)
     setForm({ nombre_libre: '', categoria: 'fertilizante', precio_referencia: '', stock_disponible: '' })
+  }
+
+  const abrirEditar = (producto) => {
+    setProductoEditar(producto)
+    setFormEditar({
+      precio_referencia: producto.precio_referencia,
+      stock_disponible: producto.stock_disponible
+    })
+    setErrorEdit('')
+    setModalEditar(true)
+  }
+
+  const [dialog, setDialog] = useState({
+    abierto: false,
+    titulo: '',
+    mensaje: '',
+    tipo: 'warning',
+    confirmText: 'Confirmar',
+    onConfirm: null
+  })
+
+  const handleGuardarEdicion = async () => {
+    if (!formEditar.precio_referencia || formEditar.stock_disponible === '') {
+      setErrorEdit('Completa todos los campos')
+      return
+    }
+    setGuardandoEdit(true)
+    setErrorEdit('')
+    try {
+      const res = await api.put(`/catalogo/${productoEditar.id}`, {
+        precio_referencia: parseFloat(formEditar.precio_referencia),
+        stock_disponible: parseInt(formEditar.stock_disponible)
+      })
+      setProductos(productos.map(p => p.id === productoEditar.id ? res.data : p))
+      setModalEditar(false)
+      setProductoEditar(null)
+    } catch (err) {
+      setErrorEdit(err.response?.data?.detail || 'Error al actualizar')
+    } finally {
+      setGuardandoEdit(false)
+    }
   }
 
   return (
@@ -238,10 +295,17 @@ export default function CatalogoProveedor() {
                           </label>
                         </td>
                         <td className="p-4 text-right">
-                          <button onClick={() => eliminar(p.id)}
-                            className="text-outline hover:text-red-600 transition-colors p-1">
-                            <span className="material-symbols-outlined">delete</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => abrirEditar(p)}
+                              title="Editar precio y stock"
+                              className="text-outline hover:text-primary transition-colors p-1">
+                              <span className="material-symbols-outlined">edit</span>
+                            </button>
+                            <button onClick={() => eliminar(p.id)}
+                              className="text-outline hover:text-red-600 transition-colors p-1">
+                              <span className="material-symbols-outlined">delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -253,7 +317,7 @@ export default function CatalogoProveedor() {
         </main>
       </div>
 
-      {/* Modal */}
+      {/* Modal Añadir Producto */}
       {modalAbierto && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden border border-outline-variant/30">
@@ -268,7 +332,7 @@ export default function CatalogoProveedor() {
             <div className="p-6 space-y-4">
               {errorModal && <ErrorMessage mensaje={errorModal} />}
 
-              {/* ✅ Campo de texto libre con autocompletado */}
+              {/* Campo de texto libre con autocompletado */}
               <div>
                 <label className="block text-xs font-semibold text-on-surface-variant mb-1">
                   Nombre del Producto
@@ -282,7 +346,6 @@ export default function CatalogoProveedor() {
                     onBlur={() => setTimeout(() => setMostrarSugerencias(false), 150)}
                     className="w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary"
                   />
-                  {/* Dropdown de sugerencias */}
                   {mostrarSugerencias && (
                     <ul className="absolute z-50 w-full bg-white border border-outline-variant rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
                       {sugerencias.map(s => (
@@ -352,6 +415,72 @@ export default function CatalogoProveedor() {
           </div>
         </div>
       )}
+
+      {/* Modal Editar*/}
+      {modalEditar && productoEditar && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-xl overflow-hidden border border-outline-variant/30">
+            <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center">
+              <h3 className="font-bold text-primary text-lg">Editar Producto</h3>
+              <button onClick={() => setModalEditar(false)}
+                className="text-on-surface-variant hover:text-on-surface">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {errorEdit && <ErrorMessage mensaje={errorEdit} />}
+
+              <div className="bg-gray-50 rounded-lg p-3 border border-outline-variant/20">
+                <p className="text-xs text-on-surface-variant">Producto</p>
+                <p className="font-semibold text-on-surface">{productoEditar.nombre}</p>
+                <span className="text-xs text-on-surface-variant capitalize">{productoEditar.categoria}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Precio Referencial ($)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">$</span>
+                  <input type="number" min="1"
+                    value={formEditar.precio_referencia}
+                    onChange={e => setFormEditar({ ...formEditar, precio_referencia: e.target.value })}
+                    className="w-full pl-8 pr-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Stock Disponible</label>
+                <input type="number" min="0"
+                  value={formEditar.stock_disponible}
+                  onChange={e => setFormEditar({ ...formEditar, stock_disponible: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-outline-variant/30 bg-gray-50 flex justify-end gap-3">
+              <button onClick={() => setModalEditar(false)}
+                className="px-5 py-2 rounded-lg text-sm font-semibold text-primary border border-outline-variant hover:bg-gray-100">
+                Cancelar
+              </button>
+              <button onClick={handleGuardarEdicion} disabled={guardandoEdit}
+                className="px-5 py-2 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:opacity-60">
+                {guardandoEdit ? 'Guardando...' : 'Guardar Cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Dialog de confirmación */}
+      <ConfirmDialog
+        abierto={dialog.abierto}
+        titulo={dialog.titulo}
+        mensaje={dialog.mensaje}
+        tipo={dialog.tipo}
+        confirmText={dialog.confirmText}
+        cancelText="Cancelar"
+        onConfirm={dialog.onConfirm}
+        onCancel={() => setDialog(d => ({ ...d, abierto: false }))}
+      />
     </div>
   )
 }
