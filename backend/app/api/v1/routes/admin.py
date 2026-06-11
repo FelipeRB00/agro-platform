@@ -7,6 +7,9 @@ from app.models.proveedor import Proveedor
 from app.models.agricultor import Agricultor
 from app.schemas.admin import UsuarioAdminResponse, UsuarioUpdateAdmin
 from app.core.dependencies import require_rol
+from app.models.comision import Comision
+from sqlalchemy import func, extract
+from datetime import datetime
 
 router = APIRouter(prefix="/admin", tags=["Administración"])
 
@@ -71,3 +74,100 @@ def eliminar_usuario(
     db.delete(usuario)
     db.commit()
     return {"message": "Usuario eliminado"}
+
+@router.get("/ingresos/resumen")
+def resumen_ingresos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("admin"))
+):
+    comisiones = db.query(Comision).all()
+
+    total_comisiones = sum(float(c.comision_total or 0) for c in comisiones)
+    total_ventas = sum(float(c.monto_venta or 0) for c in comisiones)
+    total_iva = sum(float(c.iva or 0) for c in comisiones)
+    num_ventas = len(comisiones)
+
+    # Mes actual
+    ahora = datetime.now()
+    comisiones_mes = [
+        c for c in comisiones
+        if c.creado_en and c.creado_en.month == ahora.month
+        and c.creado_en.year == ahora.year
+    ]
+    ingresos_mes = sum(float(c.comision_total or 0) for c in comisiones_mes)
+
+    return {
+        "total_comisiones": total_comisiones,
+        "total_ventas": total_ventas,
+        "total_iva": total_iva,
+        "num_ventas": num_ventas,
+        "ingresos_mes_actual": ingresos_mes,
+        "ventas_mes_actual": len(comisiones_mes)
+    }
+
+
+@router.get("/ingresos/por-mes")
+def ingresos_por_mes(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("admin"))
+):
+    comisiones = db.query(Comision).all()
+
+    meses_nombres = [
+        "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
+    ]
+
+    # Agrupar por mes del año actual
+    ahora = datetime.now()
+    datos = {}
+    for mes in range(1, 13):
+        datos[mes] = {"comisiones": 0, "ventas": 0, "monto": 0}
+
+    for c in comisiones:
+        if c.creado_en and c.creado_en.year == ahora.year:
+            mes = c.creado_en.month
+            datos[mes]["comisiones"] += float(c.comision_total or 0)
+            datos[mes]["ventas"] += 1
+            datos[mes]["monto"] += float(c.monto_venta or 0)
+
+    resultado = []
+    for mes in range(1, 13):
+        resultado.append({
+            "mes": meses_nombres[mes - 1],
+            "mes_num": mes,
+            "comisiones": round(datos[mes]["comisiones"], 0),
+            "ventas": datos[mes]["ventas"],
+            "monto_total": round(datos[mes]["monto"], 0)
+        })
+
+    return resultado
+
+
+@router.get("/ingresos/detalle")
+def detalle_ingresos(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("admin"))
+):
+    comisiones = db.query(Comision).order_by(Comision.creado_en.desc()).limit(50).all()
+
+    resultado = []
+    for c in comisiones:
+        from app.models.agricultor import Agricultor
+        from app.models.proveedor import Proveedor
+
+        agricultor = db.query(Agricultor).filter(Agricultor.id == c.agricultor_id).first()
+        proveedor = db.query(Proveedor).filter(Proveedor.id == c.proveedor_id).first()
+
+        usuario_agr = agricultor.usuario if agricultor else None
+
+        resultado.append({
+            "id": c.id,
+            "fecha": c.creado_en,
+            "agricultor": usuario_agr.nombre if usuario_agr else "Desconocido",
+            "proveedor": proveedor.nombre_empresa if proveedor else "Desconocido",
+            "monto_venta": float(c.monto_venta or 0),
+            "comision_total": float(c.comision_total or 0)
+        })
+
+    return resultado

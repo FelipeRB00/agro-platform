@@ -9,5 +9,7 @@ class Settings:
     SECRET_KEY: str = os.getenv("SECRET_KEY", "cambia-esta-clave-en-produccion")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 día
-
+    COMISION_PORCENTAJE: float = 0.005
+    IVA_PORCENTAJE: float = 0.19
+    
 settings = Settings()

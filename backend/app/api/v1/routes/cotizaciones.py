@@ -370,6 +370,48 @@ def aceptar_cotizacion(
     if not lista:
         raise HTTPException(status_code=403, detail="No autorizado")
 
+    # ─── Descontar stock del proveedor ───────────────────────────
+    from app.models.catalogo import CatalogoProveedor
+
+    for item_cot in cotizacion.items:
+        # Obtener el ítem de la lista para saber qué insumo es
+        item_lista = db.query(ItemLista).filter(
+            ItemLista.id == item_cot.item_lista_id
+        ).first()
+        if not item_lista:
+            continue
+
+        # Buscar el producto en el catálogo del proveedor
+        # Primero por insumo_id, luego por nombre del insumo
+        catalogo = db.query(CatalogoProveedor).filter(
+            CatalogoProveedor.proveedor_id == cotizacion.proveedor_id,
+            CatalogoProveedor.insumo_id == item_lista.insumo_id
+        ).first()
+
+        # Si no se encontró por insumo_id, buscar por nombre libre
+        if not catalogo:
+            insumo = db.query(Insumo).filter(Insumo.id == item_lista.insumo_id).first()
+            if insumo:
+                catalogos_prov = db.query(CatalogoProveedor).filter(
+                    CatalogoProveedor.proveedor_id == cotizacion.proveedor_id
+                ).all()
+                for c in catalogos_prov:
+                    nombre_c = c.nombre_libre or ""
+                    if nombre_c.lower() == insumo.nombre.lower():
+                        catalogo = c
+                        break
+
+        # Descontar stock si se encontró el producto
+        if catalogo:
+            cantidad_vendida = int(item_cot.cantidad_ofrecida or 0)
+            nuevo_stock = (catalogo.stock_disponible or 0) - cantidad_vendida
+            catalogo.stock_disponible = max(0, nuevo_stock)
+
+            # Si queda en 0, marcar como inactivo
+            if catalogo.stock_disponible == 0:
+                catalogo.activo = False
+
+    # ─── Actualizar estados ──────────────────────────────────────
     cotizacion.estado = "aceptada"
     db.query(Cotizacion).filter(
         Cotizacion.lista_id == cotizacion.lista_id,
@@ -379,4 +421,4 @@ def aceptar_cotizacion(
     lista.estado = "cerrada"
     db.commit()
 
-    return {"message": "Cotización aceptada exitosamente"}
+    return {"message": "Cotización aceptada exitosamente. Stock actualizado."}

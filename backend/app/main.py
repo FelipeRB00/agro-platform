@@ -10,6 +10,7 @@ from app.models import (usuario, proveedor, agricultor,
                         cotizacion, pedido, pago, historial, alerta)
 from app.api.v1.routes import auth, insumos, listas, catalogo as catalogo_routes, cotizaciones, admin, ia, perfil, reportes, ws
 from app.db.seed import seed_insumos
+from app.models.comision import Comision
 
 # Crear tablas
 Base.metadata.create_all(bind=engine)
