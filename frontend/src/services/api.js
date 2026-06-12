@@ -20,23 +20,25 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expirado o inválido → limpiar sesión y redirigir
+    const path = window.location.pathname
+    const enAuth = path === '/login' || path === '/register'
+
+    // Token expirado o inválido → cerrar sesión (solo si NO estamos en login/register)
+    if (error.response?.status === 401 && !enAuth) {
       localStorage.removeItem('token')
       localStorage.removeItem('usuario')
       window.location.href = '/login'
+      return Promise.reject(error)
     }
 
-    if (error.response?.status === 403) {
-      window.location.href = '/login'
-    }
-
+    // Timeout
     if (error.code === 'ECONNABORTED') {
       return Promise.reject({
         response: { data: { detail: 'El servidor tardó demasiado. Intenta nuevamente.' } }
       })
     }
 
+    // Sin conexión al servidor
     if (!error.response) {
       return Promise.reject({
         response: { data: { detail: 'No se pudo conectar al servidor. Verifica tu conexión.' } }

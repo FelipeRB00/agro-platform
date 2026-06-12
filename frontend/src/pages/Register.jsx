@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import api from '../services/api'
 import logo from '../assets/logo.png'
+import { validarRut, formatearRut, validarEmail, validarTelefono } from '../utils/validaciones'
 
 export default function Register() {
   const navigate = useNavigate()
@@ -15,15 +16,37 @@ export default function Register() {
   })
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
+  const [errores, setErrores] = useState({})
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    // Validar todos los campos
+    const nuevosErrores = {}
+    if (!form.nombre.trim()) {
+      nuevosErrores.nombre = 'El nombre es obligatorio'
+    }
+    if (!validarEmail(form.email)) {
+      nuevosErrores.email = 'Correo electrónico inválido'
+    }
+    if (!validarRut(form.rut)) {
+      nuevosErrores.rut = 'RUT inválido (verifica el dígito verificador)'
+    }
+    if (!validarTelefono(form.telefono)) {
+      nuevosErrores.telefono = 'Teléfono inválido (ej: +56 9 1234 5678)'
+    }
     if (form.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres')
+      nuevosErrores.password = 'La contraseña debe tener al menos 6 caracteres'
+    }
+
+    if (Object.keys(nuevosErrores).length > 0) {
+      setErrores(nuevosErrores)
       return
     }
+
+    setErrores({})
     setLoading(true)
     try {
       await api.post('/auth/register', form)
@@ -40,6 +63,13 @@ export default function Register() {
     }
   }
 
+  // Helper para clase de input según error
+  const inputClass = (campo, extra = '') =>
+    `w-full ${extra} py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all
+    ${errores[campo]
+      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+      : 'border-outline-variant focus:border-primary focus:ring-primary/10'}`
+
   return (
     <div className="min-h-screen flex font-sans bg-[#f4f8f2]">
 
@@ -49,7 +79,7 @@ export default function Register() {
 
           {/* Logo móvil */}
           <div className="lg:hidden flex flex-col items-center mb-8">
-            <div className="w-20 h-20 rounded-full bg-white shadow-lg flex items-center justify-center p-3 border border-outline-variant/20">
+            <div className="w-28 h-28 rounded-full bg-white shadow-lg flex items-center justify-center p-4 border border-outline-variant/20 overflow-hidden">
               <img src={logo} alt="CultivaTech" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-primary mt-3">CultivaTech</h1>
@@ -67,7 +97,7 @@ export default function Register() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
 
             {/* Selector de rol */}
             <div>
@@ -97,11 +127,12 @@ export default function Register() {
               </label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-lg">person</span>
-                <input type="text" required placeholder="Juan Pérez"
+                <input type="text" placeholder="Juan Pérez"
                   value={form.nombre}
                   onChange={e => setForm({ ...form, nombre: e.target.value })}
-                  className="w-full pl-11 pr-4 py-3 border border-outline-variant rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" />
+                  className={inputClass('nombre', 'pl-11 pr-4')} />
               </div>
+              {errores.nombre && <p className="text-xs text-red-500 mt-1">{errores.nombre}</p>}
             </div>
 
             {/* Email y RUT */}
@@ -110,21 +141,24 @@ export default function Register() {
                 <label className="block text-sm font-semibold text-on-surface mb-2">Correo</label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-lg">mail</span>
-                  <input type="email" required placeholder="tu@correo.cl"
+                  <input type="email" placeholder="tu@correo.cl"
                     value={form.email}
                     onChange={e => setForm({ ...form, email: e.target.value })}
-                    className="w-full pl-11 pr-3 py-3 border border-outline-variant rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" />
+                    className={inputClass('email', 'pl-11 pr-3')} />
                 </div>
+                {errores.email && <p className="text-xs text-red-500 mt-1">{errores.email}</p>}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-on-surface mb-2">RUT</label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-lg">badge</span>
-                  <input type="text" required placeholder="12.345.678-9"
+                  <input type="text" placeholder="12.345.678-9"
                     value={form.rut}
-                    onChange={e => setForm({ ...form, rut: e.target.value })}
-                    className="w-full pl-11 pr-3 py-3 border border-outline-variant rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" />
+                    onChange={e => setForm({ ...form, rut: formatearRut(e.target.value) })}
+                    maxLength={12}
+                    className={inputClass('rut', 'pl-11 pr-3')} />
                 </div>
+                {errores.rut && <p className="text-xs text-red-500 mt-1">{errores.rut}</p>}
               </div>
             </div>
 
@@ -136,8 +170,9 @@ export default function Register() {
                 <input type="tel" placeholder="+56 9 1234 5678"
                   value={form.telefono}
                   onChange={e => setForm({ ...form, telefono: e.target.value })}
-                  className="w-full pl-11 pr-4 py-3 border border-outline-variant rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" />
+                  className={inputClass('telefono', 'pl-11 pr-4')} />
               </div>
+              {errores.telefono && <p className="text-xs text-red-500 mt-1">{errores.telefono}</p>}
             </div>
 
             {/* Contraseña */}
@@ -145,15 +180,16 @@ export default function Register() {
               <label className="block text-sm font-semibold text-on-surface mb-2">Contraseña</label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-lg">lock</span>
-                <input type={showPass ? 'text' : 'password'} required placeholder="Mínimo 6 caracteres"
+                <input type={showPass ? 'text' : 'password'} placeholder="Mínimo 6 caracteres"
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
-                  className="w-full pl-11 pr-11 py-3 border border-outline-variant rounded-xl text-sm focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all" />
+                  className={inputClass('password', 'pl-11 pr-11')} />
                 <button type="button" onClick={() => setShowPass(!showPass)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface-variant transition-colors">
                   <span className="material-symbols-outlined text-lg">{showPass ? 'visibility' : 'visibility_off'}</span>
                 </button>
               </div>
+              {errores.password && <p className="text-xs text-red-500 mt-1">{errores.password}</p>}
             </div>
 
             <button type="submit" disabled={loading}
@@ -190,7 +226,7 @@ export default function Register() {
         </div>
 
         <div className="relative z-10 flex flex-col justify-center items-center w-full px-12 text-white text-center">
-          <div className="w-44 h-44 rounded-full bg-white shadow-2xl flex items-center justify-center mb-8 p-4">
+          <div className="w-44 h-44 rounded-full bg-white shadow-2xl flex items-center justify-center mb-8 p-6 overflow-hidden">
             <img src={logo} alt="CultivaTech" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-4xl font-bold mb-3">Únete a CultivaTech</h1>

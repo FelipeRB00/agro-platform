@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 const estadoBadge = {
   aceptada: 'bg-green-100 text-green-800',
@@ -30,6 +31,16 @@ export default function Cotizaciones() {
   const [loadingCotizaciones, setLoadingCotizaciones] = useState(false)
   const [aceptando, setAceptando] = useState(null)
   const [mensaje, setMensaje] = useState('')
+
+  // Estado del dialog
+  const [dialog, setDialog] = useState({
+    abierto: false,
+    titulo: '',
+    mensaje: '',
+    tipo: 'info',
+    confirmText: 'Confirmar',
+    onConfirm: null
+  })
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
@@ -68,14 +79,13 @@ export default function Cotizaciones() {
       .finally(() => setLoadingListas(false))
   }, [])
 
-  const handleAceptar = async (cotizacionId) => {
-    if (!confirm('¿Aceptar esta cotización? Las demás serán rechazadas automáticamente.')) return
+  const cerrarDialog = () => setDialog(d => ({ ...d, abierto: false }))
 
+  // Ejecuta la aceptación
+  const ejecutarAceptar = async (cotizacionId) => {
     setAceptando(cotizacionId)
-
     try {
       await api.put(`/cotizaciones/${cotizacionId}/aceptar`)
-
       setMensaje('✅ ¡Cotización aceptada! La lista ha sido cerrada.')
 
       const res = await api.get(`/cotizaciones/por-lista/${listaSeleccionada.id}`)
@@ -83,25 +93,32 @@ export default function Cotizaciones() {
 
       setListas(
         listas.map(l =>
-          l.id === listaSeleccionada.id
-            ? { ...l, estado: 'cerrada' }
-            : l
+          l.id === listaSeleccionada.id ? { ...l, estado: 'cerrada' } : l
         )
       )
-      
-      setListaSeleccionada(prev => ({
-        ...prev,
-        estado: 'cerrada'
-      }))
+      setListaSeleccionada(prev => ({ ...prev, estado: 'cerrada' }))
 
-      // Redirigir a la pantalla de pago
       navigate(`/pago/${cotizacionId}`)
-
     } catch (err) {
       alert(err.response?.data?.detail || 'Error al aceptar cotización')
     } finally {
       setAceptando(null)
     }
+  }
+
+  // Abre el dialog de confirmación
+  const handleAceptar = (cotizacionId) => {
+    setDialog({
+      abierto: true,
+      titulo: 'Aceptar Cotización',
+      mensaje: 'Al aceptar esta cotización, las demás serán rechazadas automáticamente y serás dirigido a la pantalla de pago. ¿Deseas continuar?',
+      tipo: 'success',
+      confirmText: 'Sí, aceptar y pagar',
+      onConfirm: () => {
+        cerrarDialog()
+        ejecutarAceptar(cotizacionId)
+      }
+    })
   }
 
   const totalCotizacion = (cot) => cot.items.reduce((acc, i) => acc + i.subtotal, 0)
@@ -200,14 +217,15 @@ export default function Cotizaciones() {
                             </div>
                           )}
 
-                          <div className="flex justify-between items-start mb-5">
-                            <div>
+                          {/* Nombre + estado (el estado ahora va al lado del nombre, no en la esquina) */}
+                          <div className="mb-5 pr-28">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="font-bold text-on-surface text-lg">{cot.proveedor_nombre}</h4>
-                              {cot.nota && <p className="text-sm text-on-surface-variant italic mt-1">"{cot.nota}"</p>}
+                              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${estadoBadge[cot.estado]}`}>
+                                {estadoLabel[cot.estado]}
+                              </span>
                             </div>
-                            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${estadoBadge[cot.estado]}`}>
-                              {estadoLabel[cot.estado]}
-                            </span>
+                            {cot.nota && <p className="text-sm text-on-surface-variant italic mt-1">"{cot.nota}"</p>}
                           </div>
 
                           <div className="bg-gray-50 rounded-lg p-4 mb-5">
@@ -269,6 +287,18 @@ export default function Cotizaciones() {
           )}
         </main>
       </div>
+
+      {/* Dialog de confirmación */}
+      <ConfirmDialog
+        abierto={dialog.abierto}
+        titulo={dialog.titulo}
+        mensaje={dialog.mensaje}
+        tipo={dialog.tipo}
+        confirmText={dialog.confirmText}
+        cancelText="Cancelar"
+        onConfirm={dialog.onConfirm}
+        onCancel={cerrarDialog}
+      />
     </div>
   )
 }
