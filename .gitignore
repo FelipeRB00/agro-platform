@@ -15,3 +15,9 @@ frontend/.env
 .DS_Store
 Thumbs.db
 *.log
+
+.env
+backend/.env
+venv/
+__pycache__/
+*.pyc

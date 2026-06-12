@@ -13,6 +13,7 @@ export default function PagoCotizacion() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [pagando, setPagando] = useState(false)
+  const [redirigiendo, setRedirigiendo] = useState(false)
   const [pagado, setPagado] = useState(false)
   const [error, setError] = useState('')
 
@@ -50,9 +51,23 @@ export default function PagoCotizacion() {
     }
   }
 
-  const confirmarPago = async () => {
+  // Pago real con MercadoPago (redirige a su checkout)
+  const pagarConMercadoPago = async () => {
+    setRedirigiendo(true)
+    setError('')
+    try {
+      const res = await api.post(`/pagos/crear-preferencia/${cotizacionId}`)
+      // Redirigir al checkout de MercadoPago
+      window.location.href = res.data.init_point
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Error al iniciar el pago con MercadoPago')
+      setRedirigiendo(false)
+    }
+  }
+
+  // Pago simulado (genera comprobante interno)
+  const confirmarPagoSimulado = async () => {
     setPagando(true)
-    // Simulación de procesamiento de pago
     setTimeout(async () => {
       setPagado(true)
       setPagando(false)
@@ -71,7 +86,7 @@ export default function PagoCotizacion() {
     )
   }
 
-  if (error || !data) {
+  if (error && !data) {
     return (
       <div className="bg-[#f4f8f2] min-h-screen flex">
         <Sidebar navItems={navItems} tipo="agricultor" />
@@ -97,7 +112,7 @@ export default function PagoCotizacion() {
         <main className="flex-1 p-5 md:p-8 max-w-4xl mx-auto w-full">
 
           {pagado ? (
-            // Pantalla de éxito
+            // Pantalla de éxito (pago simulado)
             <div className="bg-white rounded-2xl border border-outline-variant/30 shadow-sm p-10 text-center">
               <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
                 <span className="material-symbols-outlined text-5xl text-green-600">check_circle</span>
@@ -143,6 +158,13 @@ export default function PagoCotizacion() {
                   Lista: <span className="font-semibold">{data.lista_titulo}</span> · Proveedor: <span className="font-semibold">{data.proveedor}</span>
                 </p>
               </div>
+
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3 text-sm">
+                  <span className="material-symbols-outlined text-base">error</span>
+                  {error}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -193,8 +215,32 @@ export default function PagoCotizacion() {
                     </div>
                   </div>
 
-                  <button onClick={confirmarPago} disabled={pagando}
-                    className="w-full mt-6 bg-primary text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                  {/* Botón MercadoPago */}
+                  <button onClick={pagarConMercadoPago} disabled={redirigiendo || pagando}
+                    className="w-full mt-6 bg-[#009ee3] text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-[#008fcc] transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                    {redirigiendo ? (
+                      <>
+                        <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        Redirigiendo...
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-lg">credit_card</span>
+                        Pagar con MercadoPago
+                      </>
+                    )}
+                  </button>
+
+                  {/* Separador */}
+                  <div className="flex items-center gap-3 my-4">
+                    <div className="flex-1 h-px bg-outline-variant/30"></div>
+                    <span className="text-xs text-on-surface-variant">o</span>
+                    <div className="flex-1 h-px bg-outline-variant/30"></div>
+                  </div>
+
+                  {/* Botón pago simulado */}
+                  <button onClick={confirmarPagoSimulado} disabled={pagando || redirigiendo}
+                    className="w-full bg-primary text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
                     {pagando ? (
                       <>
                         <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
@@ -202,14 +248,14 @@ export default function PagoCotizacion() {
                       </>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined text-lg">lock</span>
-                        Confirmar y Pagar
+                        <span className="material-symbols-outlined text-lg">receipt_long</span>
+                        Generar comprobante interno
                       </>
                     )}
                   </button>
 
                   <p className="text-xs text-on-surface-variant/70 text-center mt-3">
-                    Pago simulado · Comprobante sin validez tributaria
+                    Pago de prueba · Comprobante sin validez tributaria
                   </p>
                 </div>
               </div>
