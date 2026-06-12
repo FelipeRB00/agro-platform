@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_rol
 from app.core.security import verify_password, hash_password
 from app.models.usuario import Usuario
 from app.models.agricultor import Agricultor
 from app.models.proveedor import Proveedor
-from app.schemas.usuario import UsuarioUpdate, PasswordUpdate, UsuarioResponse
+from app.schemas.usuario import UsuarioUpdate, PasswordUpdate, UsuarioResponse, DatosBancariosUpdate
 
 router = APIRouter(prefix="/perfil", tags=["Perfil"])
 
@@ -146,3 +146,49 @@ def actualizar_detalle(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Error al actualizar perfil extendido")
+    
+
+@router.get("/datos-bancarios")
+def obtener_datos_bancarios(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("proveedor"))
+):
+    proveedor = db.query(Proveedor).filter(
+        Proveedor.usuario_id == current_user.id
+    ).first()
+    if not proveedor:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    return {
+        "banco": proveedor.banco,
+        "tipo_cuenta": proveedor.tipo_cuenta,
+        "numero_cuenta": proveedor.numero_cuenta,
+        "rut_titular": proveedor.rut_titular,
+        "nombre_titular": proveedor.nombre_titular
+    }
+
+@router.put("/datos-bancarios")
+def actualizar_datos_bancarios(
+    data: DatosBancariosUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("proveedor"))
+):
+    proveedor = db.query(Proveedor).filter(
+        Proveedor.usuario_id == current_user.id
+    ).first()
+    if not proveedor:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+
+    if data.banco is not None:
+        proveedor.banco = data.banco
+    if data.tipo_cuenta is not None:
+        proveedor.tipo_cuenta = data.tipo_cuenta
+    if data.numero_cuenta is not None:
+        proveedor.numero_cuenta = data.numero_cuenta
+    if data.rut_titular is not None:
+        proveedor.rut_titular = data.rut_titular
+    if data.nombre_titular is not None:
+        proveedor.nombre_titular = data.nombre_titular
+
+    db.commit()
+    return {"message": "Datos bancarios actualizados correctamente"}

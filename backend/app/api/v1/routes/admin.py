@@ -171,3 +171,59 @@ def detalle_ingresos(
         })
 
     return resultado
+
+@router.get("/pagos-proveedores")
+def pagos_a_proveedores(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("admin"))
+):
+    from app.models.comision import Comision
+    from app.models.proveedor import Proveedor
+
+    comisiones = db.query(Comision).order_by(Comision.creado_en.desc()).all()
+
+    resultado = []
+    for c in comisiones:
+        proveedor = db.query(Proveedor).filter(Proveedor.id == c.proveedor_id).first()
+        if not proveedor:
+            continue
+
+        # Lo que se le debe transferir al proveedor = venta - su comisión
+        monto_proveedor = float(c.monto_venta or 0) - float(c.comision_proveedor or 0)
+
+        resultado.append({
+            "comision_id": c.id,
+            "fecha": c.creado_en,
+            "proveedor": proveedor.nombre_empresa,
+            "monto_venta": float(c.monto_venta or 0),
+            "comision_proveedor": float(c.comision_proveedor or 0),
+            "monto_a_transferir": monto_proveedor,
+            "comision_plataforma": float(c.comision_total or 0),
+            "datos_bancarios": {
+                "banco": proveedor.banco,
+                "tipo_cuenta": proveedor.tipo_cuenta,
+                "numero_cuenta": proveedor.numero_cuenta,
+                "rut_titular": proveedor.rut_titular,
+                "nombre_titular": proveedor.nombre_titular,
+            },
+            "datos_completos": bool(proveedor.numero_cuenta and proveedor.banco),
+            "pagado": bool(c.pagado_proveedor),
+            "fecha_pago": c.fecha_pago_proveedor,
+        })
+
+    return resultado
+
+@router.put("/pagos-proveedores/{comision_id}/marcar-pagado")
+def marcar_pago_proveedor(
+    comision_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("admin"))
+):
+    comision = db.query(Comision).filter(Comision.id == comision_id).first()
+    if not comision:
+        raise HTTPException(status_code=404, detail="Registro de pago no encontrado")
+
+    comision.pagado_proveedor = True
+    comision.fecha_pago_proveedor = datetime.now()
+    db.commit()
+    return {"message": "Pago marcado como completado"}

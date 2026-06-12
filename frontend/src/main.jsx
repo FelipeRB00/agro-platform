@@ -28,6 +28,8 @@ import ResponderCotizacion from './pages/ResponderCotizacion'
 // Admin
 import Usuarios from './pages/Usuarios'
 import DashboardAdmin from './pages/DashboardAdmin'
+import PagosProveedores from './pages/PagosProveedores'
+
 
 import './index.css'
 
@@ -121,6 +123,12 @@ function AppContent() {
         <Route path="/admin/usuarios" element={
           <ProtectedRoute roles={['admin']}>
             <Usuarios />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/pagos" element={
+          <ProtectedRoute roles={['admin']}>
+            <PagosProveedores />
           </ProtectedRoute>
         } />
 

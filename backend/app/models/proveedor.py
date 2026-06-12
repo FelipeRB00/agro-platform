@@ -14,6 +14,12 @@ class Proveedor(Base):
     descripcion = Column(String)
     porcentaje_comision = Column(Numeric, default=0)
     creado_en = Column(DateTime, default=datetime.utcnow)
+    
+    banco = Column(String, nullable=True)
+    tipo_cuenta = Column(String, nullable=True)
+    numero_cuenta = Column(String, nullable=True)
+    rut_titular = Column(String, nullable=True)
+    nombre_titular = Column(String, nullable=True)
 
     usuario = relationship("Usuario", back_populates="proveedor")
     catalogo = relationship("CatalogoProveedor", back_populates="proveedor")

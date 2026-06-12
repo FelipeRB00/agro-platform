@@ -38,3 +38,10 @@ class UsuarioUpdate(BaseModel):
 class PasswordUpdate(BaseModel):
     password_actual: str
     password_nuevo: str
+
+class DatosBancariosUpdate(BaseModel):
+    banco: Optional[str] = None
+    tipo_cuenta: Optional[str] = None
+    numero_cuenta: Optional[str] = None
+    rut_titular: Optional[str] = None
+    nombre_titular: Optional[str] = None

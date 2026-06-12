@@ -14,6 +14,12 @@ const REGIONES = [
   'Los Ríos', 'Los Lagos', 'Aysén', 'Magallanes'
 ]
 
+const BANCOS = [
+  'Banco de Chile', 'BancoEstado', 'Banco Santander', 'Banco BCI',
+  'Banco Itaú', 'Scotiabank', 'Banco Falabella', 'Banco Security',
+  'Banco BICE', 'Banco Ripley', 'Banco Consorcio', 'Coopeuch'
+]
+
 export default function Perfil() {
   const { usuario, login } = useAuth()
   const navigate = useNavigate()
@@ -35,6 +41,14 @@ export default function Perfil() {
   })
   const [showPass, setShowPass] = useState(false)
 
+  // Datos bancarios (solo proveedor)
+  const [formBanco, setFormBanco] = useState({
+    banco: '', tipo_cuenta: '', numero_cuenta: '', rut_titular: '', nombre_titular: ''
+  })
+  const [guardandoBanco, setGuardandoBanco] = useState(false)
+  const [errorBanco, setErrorBanco] = useState('')
+  const [exitoBanco, setExitoBanco] = useState('')
+
   const navItemsAgricultor = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
     { icon: 'shopping_cart', label: 'Mis Listas', path: '/listas' },
@@ -53,6 +67,7 @@ export default function Perfil() {
 
   const navItems = usuario?.rol === 'proveedor' ? navItemsProveedor : navItemsAgricultor
   const tipo = usuario?.rol === 'proveedor' ? 'proveedor' : 'agricultor'
+  const esProveedor = usuario?.rol === 'proveedor'
 
   useEffect(() => {
     api.get('/perfil/detalle')
@@ -66,6 +81,21 @@ export default function Perfil() {
       })
       .catch(() => setError('Error al cargar el perfil'))
       .finally(() => setLoading(false))
+
+    // Si es proveedor, cargar datos bancarios
+    if (usuario?.rol === 'proveedor') {
+      api.get('/perfil/datos-bancarios')
+        .then(res => {
+          setFormBanco({
+            banco: res.data.banco || '',
+            tipo_cuenta: res.data.tipo_cuenta || '',
+            numero_cuenta: res.data.numero_cuenta || '',
+            rut_titular: res.data.rut_titular || '',
+            nombre_titular: res.data.nombre_titular || ''
+          })
+        })
+        .catch(() => {})
+    }
   }, [])
 
   const handleGuardarBasico = async (e) => {
@@ -102,6 +132,21 @@ export default function Perfil() {
     }
   }
 
+  const handleGuardarBanco = async (e) => {
+    e.preventDefault()
+    setGuardandoBanco(true)
+    setErrorBanco('')
+    setExitoBanco('')
+    try {
+      await api.put('/perfil/datos-bancarios', formBanco)
+      setExitoBanco('Datos bancarios guardados correctamente')
+    } catch (err) {
+      setErrorBanco(err.response?.data?.detail || 'Error al guardar los datos bancarios')
+    } finally {
+      setGuardandoBanco(false)
+    }
+  }
+
   const handleCambiarPass = async (e) => {
     e.preventDefault()
     setErrorPass('')
@@ -128,6 +173,14 @@ export default function Perfil() {
   const inputClass = "w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary transition-all bg-white"
   const labelClass = "block text-xs font-semibold text-on-surface-variant mb-1"
 
+  // Construir tabs dinámicamente (Datos de Pago solo para proveedor)
+  const tabs = [
+    { key: 'info', icon: 'person', label: 'Información Personal' },
+    { key: 'detalle', icon: 'badge', label: esProveedor ? 'Datos Empresa' : 'Datos del Predio' },
+    ...(esProveedor ? [{ key: 'pago', icon: 'account_balance', label: 'Datos de Pago' }] : []),
+    { key: 'seguridad', icon: 'lock', label: 'Seguridad' },
+  ]
+
   return (
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
       <Sidebar navItems={navItems} tipo={tipo} />
@@ -152,12 +205,8 @@ export default function Perfil() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 mb-6 bg-white border border-outline-variant/30 rounded-xl p-1.5 w-fit">
-            {[
-              { key: 'info', icon: 'person', label: 'Información Personal' },
-              { key: 'detalle', icon: 'badge', label: usuario?.rol === 'proveedor' ? 'Datos Empresa' : 'Datos del Predio' },
-              { key: 'seguridad', icon: 'lock', label: 'Seguridad' },
-            ].map(t => (
+          <div className="flex gap-2 mb-6 bg-white border border-outline-variant/30 rounded-xl p-1.5 w-fit flex-wrap">
+            {tabs.map(t => (
               <button key={t.key} onClick={() => { setTab(t.key); setError(''); setExito('') }}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all
                   ${tab === t.key ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-gray-100'}`}>
@@ -203,7 +252,6 @@ export default function Perfil() {
                       </div>
                     </div>
 
-                    {/* Campos de solo lectura */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-outline-variant/20">
                       <div>
                         <label className={labelClass}>Correo electrónico</label>
@@ -234,7 +282,7 @@ export default function Perfil() {
               {tab === 'detalle' && (
                 <div className="bg-white rounded-xl border border-outline-variant/30 p-6 shadow-sm">
                   <h3 className="font-bold text-primary text-lg mb-6 pb-4 border-b border-outline-variant/30">
-                    {usuario?.rol === 'proveedor' ? 'Datos de la Empresa' : 'Datos del Predio Agrícola'}
+                    {esProveedor ? 'Datos de la Empresa' : 'Datos del Predio Agrícola'}
                   </h3>
 
                   {error && <div className="mb-4"><ErrorMessage mensaje={error} /></div>}
@@ -246,7 +294,7 @@ export default function Perfil() {
                   )}
 
                   <form onSubmit={handleGuardarExtendido} className="space-y-4">
-                    {usuario?.rol === 'agricultor' ? (
+                    {!esProveedor ? (
                       <>
                         <div>
                           <label className={labelClass}>Nombre del Predio</label>
@@ -321,6 +369,91 @@ export default function Perfil() {
                         className="bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-2">
                         <span className="material-symbols-outlined text-sm">save</span>
                         {guardando ? 'Guardando...' : 'Guardar Cambios'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Tab Datos de Pago (solo proveedor) */}
+              {tab === 'pago' && esProveedor && (
+                <div className="bg-white rounded-xl border border-outline-variant/30 p-6 shadow-sm">
+                  <h3 className="font-bold text-primary text-lg mb-2 pb-4 border-b border-outline-variant/30">
+                    Datos Bancarios
+                  </h3>
+                  <p className="text-sm text-on-surface-variant mb-6">
+                    Esta cuenta se usará para transferirte el dinero de tus ventas realizadas en la plataforma.
+                  </p>
+
+                  {errorBanco && <div className="mb-4"><ErrorMessage mensaje={errorBanco} /></div>}
+                  {exitoBanco && (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm flex items-center gap-2">
+                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                      {exitoBanco}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleGuardarBanco} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>Banco</label>
+                        <select value={formBanco.banco}
+                          onChange={e => setFormBanco({ ...formBanco, banco: e.target.value })}
+                          className={`${inputClass} appearance-none`}>
+                          <option value="">Seleccionar banco...</option>
+                          {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Tipo de cuenta</label>
+                        <select value={formBanco.tipo_cuenta}
+                          onChange={e => setFormBanco({ ...formBanco, tipo_cuenta: e.target.value })}
+                          className={`${inputClass} appearance-none`}>
+                          <option value="">Seleccionar tipo...</option>
+                          <option value="corriente">Cuenta Corriente</option>
+                          <option value="vista">Cuenta Vista / RUT</option>
+                          <option value="ahorro">Cuenta de Ahorro</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className={labelClass}>Número de cuenta</label>
+                      <input type="text" placeholder="Ej: 00012345678"
+                        value={formBanco.numero_cuenta}
+                        onChange={e => setFormBanco({ ...formBanco, numero_cuenta: e.target.value })}
+                        className={inputClass} />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>Nombre del titular</label>
+                        <input type="text" placeholder="Ej: Juan Pérez González"
+                          value={formBanco.nombre_titular}
+                          onChange={e => setFormBanco({ ...formBanco, nombre_titular: e.target.value })}
+                          className={inputClass} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>RUT del titular</label>
+                        <input type="text" placeholder="Ej: 12.345.678-9"
+                          value={formBanco.rut_titular}
+                          onChange={e => setFormBanco({ ...formBanco, rut_titular: e.target.value })}
+                          className={inputClass} />
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start gap-2">
+                      <span className="material-symbols-outlined text-blue-500 text-base mt-0.5">info</span>
+                      <p className="text-xs text-blue-700">
+                        Verifica que los datos sean correctos. La plataforma usará exactamente esta información para realizar las transferencias de tus ventas.
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end pt-4">
+                      <button type="submit" disabled={guardandoBanco}
+                        className="bg-primary text-white px-6 py-2.5 rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-sm">save</span>
+                        {guardandoBanco ? 'Guardando...' : 'Guardar Datos Bancarios'}
                       </button>
                     </div>
                   </form>

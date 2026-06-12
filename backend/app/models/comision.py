@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, DateTime, ForeignKey, String
+from sqlalchemy import Column, Integer, Float, DateTime, ForeignKey, String, Boolean
 from sqlalchemy.sql import func
 from app.db.database import Base
 
@@ -10,6 +10,9 @@ class Comision(Base):
     lista_id = Column(Integer, ForeignKey("listas_compra.id"), nullable=False)
     agricultor_id = Column(Integer, ForeignKey("agricultores.id"), nullable=False)
     proveedor_id = Column(Integer, ForeignKey("proveedores.id"), nullable=False)
+    
+    pagado_proveedor = Column(Boolean, default=False)
+    fecha_pago_proveedor = Column(DateTime, nullable=True)
 
     monto_venta = Column(Float, nullable=False)          # subtotal de la venta
     comision_agricultor = Column(Float, nullable=False)  # 0.5% del agricultor
