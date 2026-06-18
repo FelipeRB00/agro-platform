@@ -21,8 +21,8 @@ export default function DashboardAdmin() {
   const navItems = [
     { icon: 'dashboard', label: 'Dashboard', path: '/admin/dashboard', active: true },
     { icon: 'group', label: 'Usuarios', path: '/admin/usuarios' },
-    { icon: 'payments', label: 'Pagos', path: '/admin/pagos' },
-    { icon: 'settings', label: 'Configuración', path: '/configuracion' },
+    { icon: 'payments', label: 'Comisiones', path: '/admin/pagos' },
+    { icon: 'settings', label: 'Configuración', path: '/admin/configuracion' },
   ]
 
   useEffect(() => {

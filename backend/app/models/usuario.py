@@ -15,6 +15,11 @@ class Usuario(Base):
     telefono = Column(String(20))
     activo = Column(Boolean, default=True)
     creado_en = Column(DateTime, default=datetime.utcnow)
+    banco = Column(String, nullable=True)
+    tipo_cuenta = Column(String, nullable=True)
+    numero_cuenta = Column(String, nullable=True)
+    rut_titular = Column(String, nullable=True)
+    nombre_titular = Column(String, nullable=True)
 
     proveedor = relationship("Proveedor", back_populates="usuario", uselist=False)
     agricultor = relationship("Agricultor", back_populates="usuario", uselist=False)

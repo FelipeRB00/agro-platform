@@ -33,8 +33,8 @@ export default function Usuarios() {
   const navItems = [
     { icon: 'dashboard', label: 'Dashboard', path: '/admin/dashboard' },
     { icon: 'group', label: 'Usuarios', path: '/admin/usuarios', active: true },
-    { icon: 'payments', label: 'Pagos', path: '/admin/pagos' },
-    { icon: 'settings', label: 'Configuración', path: '/configuracion' },
+    { icon: 'payments', label: 'Comisiones', path: '/admin/pagos' },
+    { icon: 'settings', label: 'Configuración', path: '/admin/configuracion' },
   ]
 
   const cargarDatos = () => {

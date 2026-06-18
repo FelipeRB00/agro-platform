@@ -495,6 +495,9 @@ export default function CatalogoProveedor() {
                   <option value="fertilizante">Fertilizante</option>
                   <option value="semilla">Semilla</option>
                   <option value="plaguicida">Plaguicida</option>
+                  <option value="herbicida">Herbicida</option>
+                  <option value="fungicida">Fungicida</option>
+                  <option value="insecticida">Insecticida</option>
                   <option value="herramienta">Herramienta</option>
                   <option value="otro">Otro</option>
                 </select>

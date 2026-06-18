@@ -192,3 +192,44 @@ def actualizar_datos_bancarios(
 
     db.commit()
     return {"message": "Datos bancarios actualizados correctamente"}
+
+# ═══════════════════════════════════════════════════════════════════
+# ENDPOINTS DATOS BANCARIOS DEL ADMIN (cuenta de cobro de comisiones)
+# Agregar al final de perfil.py
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/datos-bancarios-admin")
+def obtener_datos_bancarios_admin(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("admin"))
+):
+    """Datos de la cuenta donde los proveedores depositan la comisión mensual."""
+    return {
+        "banco": current_user.banco,
+        "tipo_cuenta": current_user.tipo_cuenta,
+        "numero_cuenta": current_user.numero_cuenta,
+        "rut_titular": current_user.rut_titular,
+        "nombre_titular": current_user.nombre_titular
+    }
+
+
+@router.put("/datos-bancarios-admin")
+def actualizar_datos_bancarios_admin(
+    data: DatosBancariosUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("admin"))
+):
+    """Actualiza la cuenta de cobro de comisiones del admin."""
+    if data.banco is not None:
+        current_user.banco = data.banco
+    if data.tipo_cuenta is not None:
+        current_user.tipo_cuenta = data.tipo_cuenta
+    if data.numero_cuenta is not None:
+        current_user.numero_cuenta = data.numero_cuenta
+    if data.rut_titular is not None:
+        current_user.rut_titular = data.rut_titular
+    if data.nombre_titular is not None:
+        current_user.nombre_titular = data.nombre_titular
+
+    db.commit()
+    return {"message": "Datos bancarios actualizados correctamente"}
