@@ -11,6 +11,9 @@ from app.models import (usuario, proveedor, agricultor,
 from app.api.v1.routes import auth, insumos, listas, catalogo as catalogo_routes, cotizaciones, admin, ia, perfil, reportes, ws, pagos
 from app.db.seed import seed_insumos
 from app.models.comision import Comision
+from fastapi.staticfiles import StaticFiles
+import os
+
 
 # Crear tablas
 Base.metadata.create_all(bind=engine)
@@ -28,6 +31,13 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Crear carpeta de uploads si no existe
+os.makedirs("uploads/productos", exist_ok=True)
+
+# Servir archivos estáticos (después de crear app = FastAPI())
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 
 # Rate limit handler
 app.state.limiter = limiter

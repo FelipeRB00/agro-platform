@@ -52,12 +52,12 @@ export default function InteligenciaArtificial() {
   useEffect(() => {
     api.get('/ia/resumen-precios')
       .then(res => setResumenPrecios(res.data))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingResumen(false))
 
     api.get('/ia/recomendaciones')
       .then(res => setRecomendaciones(res.data))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingRec(false))
   }, [])
 
@@ -66,7 +66,7 @@ export default function InteligenciaArtificial() {
     try {
       const res = await api.get(`/ia/alertas-precios?umbral=${umbral}`)
       setAlertas(res.data)
-    } catch {}
+    } catch { }
     finally { setLoadingAlertas(false) }
   }
 
@@ -147,7 +147,7 @@ export default function InteligenciaArtificial() {
           {/* Hero */}
           <div className="bg-primary rounded-2xl p-6 mb-8 text-white relative overflow-hidden">
             <div className="absolute right-0 top-0 opacity-10">
-              <span className="material-symbols-outlined" style={{fontSize: '200px'}}>psychology</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '200px' }}>psychology</span>
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-2">
@@ -375,33 +375,51 @@ export default function InteligenciaArtificial() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {recomendaciones.map((rec, i) => (
-                    <div key={i} className="bg-white rounded-xl border border-outline-variant/30 p-5 shadow-sm hover:shadow-md transition-all">
-                      <div className="flex justify-between items-start mb-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-semibold ${categoriaBadge[rec.categoria] || 'bg-gray-100 text-gray-700'}`}>
-                          {rec.categoria}
-                        </span>
-                        {rec.popularidad > 0 && (
-                          <span className="text-xs text-on-surface-variant flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">people</span>
-                            {rec.popularidad}
-                          </span>
+                    <div key={i} className="bg-white rounded-xl border border-outline-variant/30 shadow-sm hover:shadow-md transition-all overflow-hidden">
+                      {/* Imagen del producto */}
+                      <div className="h-36 bg-gray-100 flex items-center justify-center overflow-hidden">
+                        {rec.imagen_url ? (
+                          <img src={`http://127.0.0.1:8001${rec.imagen_url}`} alt={rec.nombre}
+                            className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="material-symbols-outlined text-5xl text-outline">image</span>
                         )}
                       </div>
-                      <h4 className="font-bold text-on-surface mb-1">{rec.nombre}</h4>
-                      <p className="text-xs text-on-surface-variant mb-4">{rec.razon}</p>
-                      <div className="flex justify-between items-center pt-3 border-t border-outline-variant/20">
-                        <div>
-                          {rec.precio_promedio ? (
-                            <p className="text-sm font-bold text-primary">${rec.precio_promedio.toLocaleString('es-CL')}</p>
-                          ) : (
-                            <p className="text-xs text-on-surface-variant">Sin precio ref.</p>
+
+                      <div className="p-5">
+                        <div className="flex justify-between items-start mb-3">
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize font-semibold ${categoriaBadge[rec.categoria] || 'bg-gray-100 text-gray-700'}`}>
+                            {rec.categoria}
+                          </span>
+                          {rec.popularidad > 0 && (
+                            <span className="text-xs text-on-surface-variant flex items-center gap-1">
+                              <span className="material-symbols-outlined text-sm">people</span>
+                              {rec.popularidad}
+                            </span>
                           )}
-                          <p className="text-xs text-on-surface-variant">{rec.num_proveedores} proveedor(es)</p>
                         </div>
-                        <button onClick={() => navigate('/listas/nueva')}
-                          className="bg-secondary-container text-on-secondary-container px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary hover:text-white transition-colors">
-                          Agregar a lista
-                        </button>
+                        <h4 className="font-bold text-on-surface mb-1">{rec.nombre}</h4>
+                        {rec.ingrediente_activo && (
+                          <p className="text-xs text-on-surface-variant mb-1 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-sm">science</span>
+                            {rec.ingrediente_activo}
+                          </p>
+                        )}
+                        <p className="text-xs text-on-surface-variant mb-4">{rec.razon}</p>
+                        <div className="flex justify-between items-center pt-3 border-t border-outline-variant/20">
+                          <div>
+                            {rec.precio_promedio ? (
+                              <p className="text-sm font-bold text-primary">${rec.precio_promedio.toLocaleString('es-CL')}</p>
+                            ) : (
+                              <p className="text-xs text-on-surface-variant">Sin precio ref.</p>
+                            )}
+                            <p className="text-xs text-on-surface-variant">{rec.num_proveedores} proveedor(es)</p>
+                          </div>
+                          <button onClick={() => navigate('/listas/nueva')}
+                            className="bg-secondary-container text-on-secondary-container px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-primary hover:text-white transition-colors">
+                            Agregar a lista
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

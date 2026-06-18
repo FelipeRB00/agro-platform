@@ -1,4 +1,3 @@
-
 from sqlalchemy import Column, Integer, Numeric, Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -17,6 +16,8 @@ class CatalogoProveedor(Base):
 
     nombre_libre = Column(String, nullable=True)
     categoria = Column(String, nullable=True)
+    ingrediente_activo = Column(String, nullable=True)
+    imagen_url = Column(String, nullable=True)
 
     proveedor = relationship("Proveedor", back_populates="catalogo")
     insumo = relationship("Insumo", back_populates="catalogo")

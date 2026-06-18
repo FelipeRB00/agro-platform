@@ -51,7 +51,7 @@ export default function ResponderCotizacion() {
         })
         setPrecios(preciosIniciales)
       })
-      .catch(() => {})
+      .catch(() => { })
   }, [alerta])
 
   if (!alerta) {
@@ -149,7 +149,7 @@ export default function ResponderCotizacion() {
                   <h2 className="text-xl font-bold text-on-surface">{alerta.agricultor_nombre}</h2>
                   {alerta.agricultor_region && (
                     <p className="text-sm text-on-surface-variant flex items-center gap-1 mt-1">
-                      <span className="material-symbols-outlined" style={{fontSize:'16px'}}>location_on</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>location_on</span>
                       {alerta.agricultor_region}
                     </p>
                   )}
@@ -173,13 +173,28 @@ export default function ResponderCotizacion() {
                       </div>
                       {/* Info del catálogo */}
                       {prod ? (
-                        <div className="mt-2 pt-2 border-t border-gray-200 flex items-center gap-4 text-xs">
-                          <span className="text-on-surface-variant">
-                            Tu precio: <span className="font-semibold text-primary">${prod.precio_referencia.toLocaleString('es-CL')}</span>
-                          </span>
-                          <span className="text-on-surface-variant">
-                            Stock: <span className="font-semibold text-primary">{prod.stock_disponible}</span>
-                          </span>
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <div className="flex items-center gap-3">
+                            {prod.imagen_url && (
+                              <img src={`http://127.0.0.1:8001${prod.imagen_url}`} alt={prod.nombre}
+                                className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0" />
+                            )}
+                            <div className="flex-1 text-xs space-y-0.5">
+                              <div className="flex items-center gap-4">
+                                <span className="text-on-surface-variant">
+                                  Tu precio: <span className="font-semibold text-primary">${prod.precio_referencia.toLocaleString('es-CL')}</span>
+                                </span>
+                                <span className="text-on-surface-variant">
+                                  Stock: <span className="font-semibold text-primary">{prod.stock_disponible}</span>
+                                </span>
+                              </div>
+                              {prod.ingrediente_activo && (
+                                <p className="text-on-surface-variant">
+                                  Ingrediente activo: <span className="font-semibold">{prod.ingrediente_activo}</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <p className="mt-2 pt-2 border-t border-gray-200 text-xs text-amber-600">

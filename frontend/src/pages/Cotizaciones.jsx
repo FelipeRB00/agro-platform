@@ -241,7 +241,20 @@ export default function Cotizaciones() {
                               <tbody>
                                 {cot.items.map((item, i) => (
                                   <tr key={i} className="border-b border-outline-variant/10 last:border-0">
-                                    <td className="py-2">{item.insumo_nombre}</td>
+                                    <td className="py-2">
+                                      <div className="flex items-center gap-2">
+                                        {item.imagen_url && (
+                                          <img src={`http://127.0.0.1:8001${item.imagen_url}`} alt={item.insumo_nombre}
+                                            className="w-8 h-8 rounded object-cover border border-gray-200 shrink-0" />
+                                        )}
+                                        <div>
+                                          <p>{item.insumo_nombre}</p>
+                                          {item.ingrediente_activo && (
+                                            <p className="text-xs text-on-surface-variant">{item.ingrediente_activo}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </td>
                                     <td className="py-2 text-right">${item.precio_unitario.toLocaleString('es-CL')}</td>
                                     <td className="py-2 text-right">{item.cantidad_ofrecida}</td>
                                     <td className="py-2 text-right font-semibold">${item.subtotal.toLocaleString('es-CL')}</td>

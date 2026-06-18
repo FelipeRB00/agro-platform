@@ -326,12 +326,37 @@ def cotizaciones_por_lista(
         for i in c.items:
             item_lista = db.query(ItemLista).filter(ItemLista.id == i.item_lista_id).first()
             insumo = db.query(Insumo).filter(Insumo.id == item_lista.insumo_id).first() if item_lista else None
+
+            # Buscar imagen e ingrediente activo en el catálogo del proveedor
+            imagen_url = None
+            ingrediente_activo = None
+            if insumo:
+                from app.models.catalogo import CatalogoProveedor
+                cat = db.query(CatalogoProveedor).filter(
+                    CatalogoProveedor.proveedor_id == c.proveedor_id,
+                    CatalogoProveedor.insumo_id == insumo.id
+                ).first()
+                # Si no se encontró por insumo_id, buscar por nombre libre
+                if not cat:
+                    cats = db.query(CatalogoProveedor).filter(
+                        CatalogoProveedor.proveedor_id == c.proveedor_id
+                    ).all()
+                    for cc in cats:
+                        if cc.nombre_libre and cc.nombre_libre.lower() == insumo.nombre.lower():
+                            cat = cc
+                            break
+                if cat:
+                    imagen_url = cat.imagen_url
+                    ingrediente_activo = cat.ingrediente_activo
+
             items.append({
                 "id": i.id,
                 "insumo_nombre": insumo.nombre if insumo else "",
                 "precio_unitario": float(i.precio_unitario),
                 "cantidad_ofrecida": float(i.cantidad_ofrecida),
-                "subtotal": float(i.subtotal or 0)
+                "subtotal": float(i.subtotal or 0),
+                "imagen_url": imagen_url,
+                "ingrediente_activo": ingrediente_activo
             })
 
         resultado.append({

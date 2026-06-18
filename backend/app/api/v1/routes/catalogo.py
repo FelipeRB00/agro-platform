@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 from app.db.database import get_db
@@ -9,8 +9,14 @@ from app.schemas.catalogo import CatalogoCreate, CatalogoUpdate
 from app.core.dependencies import require_rol
 from app.models.usuario import Usuario
 from datetime import datetime
+import os
+import uuid
 
 router = APIRouter(prefix="/catalogo", tags=["Catálogo Proveedor"])
+
+# Extensiones de imagen permitidas
+EXTENSIONES_PERMITIDAS = {".jpg", ".jpeg", ".png", ".webp"}
+CARPETA_UPLOADS = "uploads/productos"
 
 
 def get_proveedor(db: Session, usuario: Usuario):
@@ -44,7 +50,9 @@ def serializar_catalogo(db: Session, c: CatalogoProveedor):
         "precio_referencia": float(c.precio_referencia or 0),
         "stock_disponible": c.stock_disponible or 0,
         "activo": c.activo,
-        "actualizado_en": c.actualizado_en
+        "actualizado_en": c.actualizado_en,
+        "ingrediente_activo": c.ingrediente_activo,
+        "imagen_url": c.imagen_url
     }
 
 
@@ -106,6 +114,7 @@ def agregar_producto(
             categoria=(data.categoria or "otro") if not data.insumo_id else None,
             precio_referencia=data.precio_referencia,
             stock_disponible=data.stock_disponible,
+            ingrediente_activo=data.ingrediente_activo,
             activo=True
         )
         db.add(catalogo)
@@ -148,6 +157,9 @@ def actualizar_producto(
         if data.activo is not None:
             catalogo.activo = data.activo
 
+        if data.ingrediente_activo is not None:
+            catalogo.ingrediente_activo = data.ingrediente_activo
+
         catalogo.actualizado_en = datetime.utcnow()
 
         db.commit()
@@ -159,6 +171,67 @@ def actualizar_producto(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error al actualizar producto: {str(e)}")
+
+
+@router.post("/{catalogo_id}/imagen")
+def subir_imagen_producto(
+    catalogo_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("proveedor"))
+):
+    proveedor = get_proveedor(db, current_user)
+    catalogo = db.query(CatalogoProveedor).filter(
+        CatalogoProveedor.id == catalogo_id,
+        CatalogoProveedor.proveedor_id == proveedor.id
+    ).first()
+    if not catalogo:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    # Validar extensión
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in EXTENSIONES_PERMITIDAS:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato no permitido. Usa JPG, PNG o WEBP."
+        )
+
+    # Asegurar que la carpeta existe
+    os.makedirs(CARPETA_UPLOADS, exist_ok=True)
+
+    # Nombre único para evitar colisiones
+    nombre_archivo = f"{uuid.uuid4().hex}{ext}"
+    ruta_archivo = os.path.join(CARPETA_UPLOADS, nombre_archivo)
+
+    # Guardar el archivo
+    try:
+        contenido = file.file.read()
+        # Validar tamaño máximo (5 MB)
+        if len(contenido) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="La imagen no debe superar los 5 MB")
+        with open(ruta_archivo, "wb") as f:
+            f.write(contenido)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al guardar la imagen")
+
+    # Borrar imagen anterior si existía
+    if catalogo.imagen_url:
+        ruta_anterior = catalogo.imagen_url.lstrip("/")
+        if os.path.exists(ruta_anterior):
+            try:
+                os.remove(ruta_anterior)
+            except Exception:
+                pass
+
+    # Guardar la ruta en la BD (relativa, servida por /uploads)
+    catalogo.imagen_url = f"/uploads/productos/{nombre_archivo}"
+    catalogo.actualizado_en = datetime.utcnow()
+    db.commit()
+    db.refresh(catalogo)
+
+    return serializar_catalogo(db, catalogo)
 
 
 @router.delete("/{catalogo_id}")
@@ -174,6 +247,15 @@ def eliminar_producto(
     ).first()
     if not catalogo:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    # Borrar imagen asociada si existe
+    if catalogo.imagen_url:
+        ruta = catalogo.imagen_url.lstrip("/")
+        if os.path.exists(ruta):
+            try:
+                os.remove(ruta)
+            except Exception:
+                pass
 
     db.delete(catalogo)
     db.commit()

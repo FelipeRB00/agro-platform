@@ -40,13 +40,17 @@ def _tiene_proveedor(insumo, ids_con_proveedor, nombres_con_proveedor):
 
 
 def _contar_proveedores(db: Session, insumo):
-    """Cuenta proveedores activos para un insumo (por id o nombre) y su precio promedio."""
+    """Cuenta proveedores activos para un insumo (por id o nombre), precio promedio,
+    e incluye imagen + ingrediente activo del primer producto encontrado."""
     catalogos = db.query(CatalogoProveedor).filter(
         CatalogoProveedor.activo == True
     ).all()
 
     precios = []
     num = 0
+    imagen_url = None
+    ingrediente_activo = None
+
     for c in catalogos:
         coincide = False
         if c.insumo_id and c.insumo_id == insumo.id:
@@ -58,9 +62,14 @@ def _contar_proveedores(db: Session, insumo):
             num += 1
             if c.precio_referencia:
                 precios.append(float(c.precio_referencia))
+            # Tomar la imagen e ingrediente del primero que tenga
+            if imagen_url is None and c.imagen_url:
+                imagen_url = c.imagen_url
+            if ingrediente_activo is None and c.ingrediente_activo:
+                ingrediente_activo = c.ingrediente_activo
 
     precio_promedio = round(np.mean(precios), 2) if precios else None
-    return num, precio_promedio
+    return num, precio_promedio, imagen_url, ingrediente_activo
 
 
 def recomendar_insumos(db: Session, agricultor_id: int, limite: int = 5):
@@ -100,7 +109,7 @@ def recomendar_insumos(db: Session, agricultor_id: int, limite: int = 5):
         if not _tiene_proveedor(insumo, ids_con_proveedor, nombres_con_proveedor):
             continue  # ← clave: saltar insumos sin proveedor
 
-        num_prov, precio_prom = _contar_proveedores(db, insumo)
+        num_prov, precio_prom, imagen_url, ingrediente_activo = _contar_proveedores(db, insumo)
         recomendados.append({
             "insumo_id": insumo.id,
             "nombre": insumo.nombre,
@@ -108,7 +117,9 @@ def recomendar_insumos(db: Session, agricultor_id: int, limite: int = 5):
             "popularidad": count,
             "precio_promedio": precio_prom,
             "num_proveedores": num_prov,
-            "razon": f"Comprado por {count} agricultor(es) con necesidades similares"
+            "razon": f"Comprado por {count} agricultor(es) con necesidades similares",
+            "imagen_url": imagen_url,
+            "ingrediente_activo": ingrediente_activo,
         })
 
     # 2. Completar con insumos que tienen proveedor (aunque no sean populares aún)
@@ -124,7 +135,7 @@ def recomendar_insumos(db: Session, agricultor_id: int, limite: int = 5):
             if not _tiene_proveedor(insumo, ids_con_proveedor, nombres_con_proveedor):
                 continue  # ← solo insumos con proveedor
 
-            num_prov, precio_prom = _contar_proveedores(db, insumo)
+            num_prov, precio_prom, imagen_url, ingrediente_activo = _contar_proveedores(db, insumo)
             recomendados.append({
                 "insumo_id": insumo.id,
                 "nombre": insumo.nombre,
@@ -132,7 +143,9 @@ def recomendar_insumos(db: Session, agricultor_id: int, limite: int = 5):
                 "popularidad": 0,
                 "precio_promedio": precio_prom,
                 "num_proveedores": num_prov,
-                "razon": "Disponible con proveedores activos en la plataforma"
+                "razon": "Disponible con proveedores activos en la plataforma",
+                "imagen_url": imagen_url,
+                "ingrediente_activo": ingrediente_activo,
             })
 
     return recomendados

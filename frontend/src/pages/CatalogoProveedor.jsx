@@ -8,6 +8,8 @@ import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import ConfirmDialog from '../components/ConfirmDialog'
 
+const API_BASE = 'http://127.0.0.1:8001'
+
 const categoriaBadge = {
   fertilizante: 'bg-green-100 text-green-800',
   semilla: 'bg-yellow-100 text-yellow-800',
@@ -30,17 +32,22 @@ export default function CatalogoProveedor() {
   // Estados de edición
   const [modalEditar, setModalEditar] = useState(false)
   const [productoEditar, setProductoEditar] = useState(null)
-  const [formEditar, setFormEditar] = useState({ precio_referencia: '', stock_disponible: '' })
+  const [formEditar, setFormEditar] = useState({ precio_referencia: '', stock_disponible: '', ingrediente_activo: '' })
   const [guardandoEdit, setGuardandoEdit] = useState(false)
   const [errorEdit, setErrorEdit] = useState('')
+  const [imagenEditar, setImagenEditar] = useState(null)
+  const [previewEditar, setPreviewEditar] = useState(null)
 
   // Form añadir con nombre libre
   const [form, setForm] = useState({
     nombre_libre: '',
     categoria: 'fertilizante',
     precio_referencia: '',
-    stock_disponible: ''
+    stock_disponible: '',
+    ingrediente_activo: ''
   })
+  const [imagen, setImagen] = useState(null)
+  const [preview, setPreview] = useState(null)
   const [sugerencias, setSugerencias] = useState([])
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
 
@@ -88,6 +95,46 @@ export default function CatalogoProveedor() {
     setMostrarSugerencias(false)
   }
 
+  // Manejo de imagen (añadir)
+  const handleImagenChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setErrorModal('El archivo debe ser una imagen')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorModal('La imagen no debe superar los 5 MB')
+      return
+    }
+    setImagen(file)
+    setPreview(URL.createObjectURL(file))
+  }
+
+  // Manejo de imagen (editar)
+  const handleImagenEditarChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setErrorEdit('El archivo debe ser una imagen')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorEdit('La imagen no debe superar los 5 MB')
+      return
+    }
+    setImagenEditar(file)
+    setPreviewEditar(URL.createObjectURL(file))
+  }
+
+  const subirImagen = async (catalogoId, archivo) => {
+    const formData = new FormData()
+    formData.append('file', archivo)
+    return api.post(`/catalogo/${catalogoId}/imagen`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  }
+
   const productosFiltrados = productos.filter(p =>
     p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
     p.categoria.toLowerCase().includes(busqueda.toLowerCase())
@@ -124,7 +171,7 @@ export default function CatalogoProveedor() {
 
   const handleGuardar = async () => {
     if (!form.nombre_libre.trim() || !form.precio_referencia || !form.stock_disponible) {
-      setErrorModal('Completa todos los campos')
+      setErrorModal('Completa los campos obligatorios')
       return
     }
     setGuardando(true)
@@ -134,11 +181,17 @@ export default function CatalogoProveedor() {
         nombre_libre: form.nombre_libre.trim(),
         categoria: form.categoria,
         precio_referencia: parseFloat(form.precio_referencia),
-        stock_disponible: parseInt(form.stock_disponible)
+        stock_disponible: parseInt(form.stock_disponible),
+        ingrediente_activo: form.ingrediente_activo.trim() || null
       })
-      setProductos([...productos, res.data])
-      setForm({ nombre_libre: '', categoria: 'fertilizante', precio_referencia: '', stock_disponible: '' })
-      setModalAbierto(false)
+      let productoFinal = res.data
+      // Si hay imagen, subirla
+      if (imagen) {
+        const resImg = await subirImagen(res.data.id, imagen)
+        productoFinal = resImg.data
+      }
+      setProductos([...productos, productoFinal])
+      cerrarModal()
     } catch (err) {
       setErrorModal(err.response?.data?.detail || 'Error al guardar')
     } finally {
@@ -150,15 +203,20 @@ export default function CatalogoProveedor() {
     setModalAbierto(false)
     setErrorModal('')
     setMostrarSugerencias(false)
-    setForm({ nombre_libre: '', categoria: 'fertilizante', precio_referencia: '', stock_disponible: '' })
+    setForm({ nombre_libre: '', categoria: 'fertilizante', precio_referencia: '', stock_disponible: '', ingrediente_activo: '' })
+    setImagen(null)
+    setPreview(null)
   }
 
   const abrirEditar = (producto) => {
     setProductoEditar(producto)
     setFormEditar({
       precio_referencia: producto.precio_referencia,
-      stock_disponible: producto.stock_disponible
+      stock_disponible: producto.stock_disponible,
+      ingrediente_activo: producto.ingrediente_activo || ''
     })
+    setImagenEditar(null)
+    setPreviewEditar(null)
     setErrorEdit('')
     setModalEditar(true)
   }
@@ -182,9 +240,16 @@ export default function CatalogoProveedor() {
     try {
       const res = await api.put(`/catalogo/${productoEditar.id}`, {
         precio_referencia: parseFloat(formEditar.precio_referencia),
-        stock_disponible: parseInt(formEditar.stock_disponible)
+        stock_disponible: parseInt(formEditar.stock_disponible),
+        ingrediente_activo: formEditar.ingrediente_activo.trim() || null
       })
-      setProductos(productos.map(p => p.id === productoEditar.id ? res.data : p))
+      let productoFinal = res.data
+      // Si se seleccionó nueva imagen, subirla
+      if (imagenEditar) {
+        const resImg = await subirImagen(productoEditar.id, imagenEditar)
+        productoFinal = resImg.data
+      }
+      setProductos(productos.map(p => p.id === productoEditar.id ? productoFinal : p))
       setModalEditar(false)
       setProductoEditar(null)
     } catch (err) {
@@ -275,10 +340,26 @@ export default function CatalogoProveedor() {
                     {productosFiltrados.map(p => (
                       <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                         <td className="p-4">
-                          <p className="font-semibold text-sm text-on-surface">{p.nombre}</p>
-                          {p.unidad_medida && (
-                            <p className="text-xs text-on-surface-variant">{p.unidad_medida}</p>
-                          )}
+                          <div className="flex items-center gap-3">
+                            {/* Miniatura de imagen */}
+                            <div className="w-12 h-12 rounded-lg bg-gray-100 border border-outline-variant/20 flex items-center justify-center overflow-hidden shrink-0">
+                              {p.imagen_url ? (
+                                <img src={`${API_BASE}${p.imagen_url}`} alt={p.nombre}
+                                  className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="material-symbols-outlined text-outline text-xl">image</span>
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm text-on-surface">{p.nombre}</p>
+                              {p.ingrediente_activo && (
+                                <p className="text-xs text-on-surface-variant">{p.ingrediente_activo}</p>
+                              )}
+                              {p.unidad_medida && (
+                                <p className="text-xs text-on-surface-variant">{p.unidad_medida}</p>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td className="p-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${categoriaBadge[p.categoria] || 'bg-gray-100 text-gray-700'}`}>
@@ -297,7 +378,7 @@ export default function CatalogoProveedor() {
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button onClick={() => abrirEditar(p)}
-                              title="Editar precio y stock"
+                              title="Editar producto"
                               className="text-outline hover:text-primary transition-colors p-1">
                               <span className="material-symbols-outlined">edit</span>
                             </button>
@@ -319,9 +400,9 @@ export default function CatalogoProveedor() {
 
       {/* Modal Añadir Producto */}
       {modalAbierto && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden border border-outline-variant/30">
-            <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-lg rounded-xl shadow-xl overflow-hidden border border-outline-variant/30 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center sticky top-0 bg-white z-10">
               <h3 className="font-bold text-primary text-lg">Añadir Nuevo Producto</h3>
               <button onClick={cerrarModal}
                 className="text-on-surface-variant hover:text-on-surface">
@@ -331,6 +412,28 @@ export default function CatalogoProveedor() {
 
             <div className="p-6 space-y-4">
               {errorModal && <ErrorMessage mensaje={errorModal} />}
+
+              {/* Selector de imagen */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Imagen del Producto (opcional)</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-lg bg-gray-100 border border-outline-variant/30 flex items-center justify-center overflow-hidden shrink-0">
+                    {preview ? (
+                      <img src={preview} alt="preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="material-symbols-outlined text-outline text-2xl">image</span>
+                    )}
+                  </div>
+                  <label className="flex-1 cursor-pointer">
+                    <div className="px-4 py-2.5 border border-dashed border-outline-variant rounded-lg text-sm text-on-surface-variant hover:border-secondary hover:bg-gray-50 transition-colors text-center">
+                      <span className="material-symbols-outlined text-base align-middle mr-1">upload</span>
+                      {imagen ? imagen.name.slice(0, 25) : 'Seleccionar imagen'}
+                    </div>
+                    <input type="file" accept="image/*" onChange={handleImagenChange} className="hidden" />
+                  </label>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">JPG, PNG o WEBP · Máx 5 MB</p>
+              </div>
 
               {/* Campo de texto libre con autocompletado */}
               <div>
@@ -363,6 +466,20 @@ export default function CatalogoProveedor() {
                 </div>
                 <p className="text-xs text-on-surface-variant mt-1">
                   Escribe para ver sugerencias o ingresa un nombre propio
+                </p>
+              </div>
+
+              {/* Ingrediente activo */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">
+                  Ingrediente Activo (opcional)
+                </label>
+                <input type="text" placeholder="Ej: Glifosato 480 g/L, Mancozeb 80%..."
+                  value={form.ingrediente_activo}
+                  onChange={e => setForm({ ...form, ingrediente_activo: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
+                <p className="text-xs text-on-surface-variant mt-1">
+                  El componente químico principal del producto
                 </p>
               </div>
 
@@ -402,7 +519,7 @@ export default function CatalogoProveedor() {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-outline-variant/30 bg-gray-50 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-outline-variant/30 bg-gray-50 flex justify-end gap-3 sticky bottom-0">
               <button onClick={cerrarModal}
                 className="px-5 py-2 rounded-lg text-sm font-semibold text-primary border border-outline-variant hover:bg-gray-100">
                 Cancelar
@@ -418,9 +535,9 @@ export default function CatalogoProveedor() {
 
       {/* Modal Editar*/}
       {modalEditar && productoEditar && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-xl shadow-xl overflow-hidden border border-outline-variant/30">
-            <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-xl overflow-hidden border border-outline-variant/30 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center sticky top-0 bg-white z-10">
               <h3 className="font-bold text-primary text-lg">Editar Producto</h3>
               <button onClick={() => setModalEditar(false)}
                 className="text-on-surface-variant hover:text-on-surface">
@@ -435,6 +552,38 @@ export default function CatalogoProveedor() {
                 <p className="text-xs text-on-surface-variant">Producto</p>
                 <p className="font-semibold text-on-surface">{productoEditar.nombre}</p>
                 <span className="text-xs text-on-surface-variant capitalize">{productoEditar.categoria}</span>
+              </div>
+
+              {/* Imagen en edición */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Imagen del Producto</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-lg bg-gray-100 border border-outline-variant/30 flex items-center justify-center overflow-hidden shrink-0">
+                    {previewEditar ? (
+                      <img src={previewEditar} alt="preview" className="w-full h-full object-cover" />
+                    ) : productoEditar.imagen_url ? (
+                      <img src={`${API_BASE}${productoEditar.imagen_url}`} alt={productoEditar.nombre} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="material-symbols-outlined text-outline text-2xl">image</span>
+                    )}
+                  </div>
+                  <label className="flex-1 cursor-pointer">
+                    <div className="px-4 py-2.5 border border-dashed border-outline-variant rounded-lg text-sm text-on-surface-variant hover:border-secondary hover:bg-gray-50 transition-colors text-center">
+                      <span className="material-symbols-outlined text-base align-middle mr-1">upload</span>
+                      {imagenEditar ? 'Cambiar imagen' : 'Subir nueva imagen'}
+                    </div>
+                    <input type="file" accept="image/*" onChange={handleImagenEditarChange} className="hidden" />
+                  </label>
+                </div>
+              </div>
+
+              {/* Ingrediente activo */}
+              <div>
+                <label className="block text-xs font-semibold text-on-surface-variant mb-1">Ingrediente Activo</label>
+                <input type="text" placeholder="Ej: Glifosato 480 g/L"
+                  value={formEditar.ingrediente_activo}
+                  onChange={e => setFormEditar({ ...formEditar, ingrediente_activo: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary" />
               </div>
 
               <div>
@@ -457,7 +606,7 @@ export default function CatalogoProveedor() {
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-outline-variant/30 bg-gray-50 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-outline-variant/30 bg-gray-50 flex justify-end gap-3 sticky bottom-0">
               <button onClick={() => setModalEditar(false)}
                 className="px-5 py-2 rounded-lg text-sm font-semibold text-primary border border-outline-variant hover:bg-gray-100">
                 Cancelar
@@ -470,6 +619,7 @@ export default function CatalogoProveedor() {
           </div>
         </div>
       )}
+
       {/* Dialog de confirmación */}
       <ConfirmDialog
         abierto={dialog.abierto}
