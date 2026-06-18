@@ -3,8 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import api from '../services/api'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
-import LoadingSpinner from '../components/LoadingSpinner'
 import ErrorMessage from '../components/ErrorMessage'
+
+const categoriaBadge = {
+  fertilizante: 'bg-green-100 text-green-800',
+  semilla: 'bg-yellow-100 text-yellow-800',
+  plaguicida: 'bg-red-100 text-red-800',
+  herbicida: 'bg-orange-100 text-orange-800',
+  fungicida: 'bg-purple-100 text-purple-800',
+  insecticida: 'bg-pink-100 text-pink-800',
+  herramienta: 'bg-blue-100 text-blue-800',
+  otro: 'bg-gray-100 text-gray-700',
+}
 
 export default function CrearLista() {
   const navigate = useNavigate()
@@ -15,6 +25,12 @@ export default function CrearLista() {
   const [loading, setLoading] = useState(false)
   const [loadingInsumos, setLoadingInsumos] = useState(true)
   const [error, setError] = useState('')
+
+  // Buscador con autocompletado
+  const [busquedaInsumo, setBusquedaInsumo] = useState('')
+  const [insumoSeleccionado, setInsumoSeleccionado] = useState(null)
+  const [sugerencias, setSugerencias] = useState([])
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
@@ -31,17 +47,51 @@ export default function CrearLista() {
       .finally(() => setLoadingInsumos(false))
   }, [])
 
+  // Buscar insumos al escribir
+  const handleBusquedaChange = (valor) => {
+    setBusquedaInsumo(valor)
+    setInsumoSeleccionado(null)
+    setForm({ ...form, insumo_id: '' })
+    if (valor.length >= 2) {
+      const filtradas = insumos.filter(i =>
+        i.nombre.toLowerCase().includes(valor.toLowerCase()) ||
+        (i.ingrediente_activo && i.ingrediente_activo.toLowerCase().includes(valor.toLowerCase()))
+      )
+      setSugerencias(filtradas.slice(0, 8))
+      setMostrarSugerencias(filtradas.length > 0)
+    } else {
+      setMostrarSugerencias(false)
+      setSugerencias([])
+    }
+  }
+
+  const seleccionarInsumo = (insumo) => {
+    setInsumoSeleccionado(insumo)
+    setBusquedaInsumo(insumo.nombre)
+    setForm({ ...form, insumo_id: insumo.id.toString() })
+    setMostrarSugerencias(false)
+  }
+
   const handleAddItem = () => {
-    if (!form.insumo_id || !form.cantidad) return
-    const insumo = insumos.find(i => i.id === parseInt(form.insumo_id))
-    const yaExiste = items.find(i => i.insumo_id === form.insumo_id)
+    if (!insumoSeleccionado || !form.cantidad) return
+    const yaExiste = items.find(i => i.insumo_id === insumoSeleccionado.id.toString())
     if (yaExiste) {
       setError('Este insumo ya está en la lista')
       return
     }
     setError('')
-    setItems([...items, { ...form, insumo, id: Date.now() }])
+    setItems([...items, {
+      insumo_id: insumoSeleccionado.id.toString(),
+      cantidad: form.cantidad,
+      unidad: form.unidad,
+      nota: form.nota,
+      insumo: insumoSeleccionado,
+      id: Date.now()
+    }])
+    // Limpiar
     setForm({ insumo_id: '', cantidad: '', unidad: 'kg', nota: '' })
+    setBusquedaInsumo('')
+    setInsumoSeleccionado(null)
   }
 
   const handleRemove = (id) => setItems(items.filter(i => i.id !== id))
@@ -119,41 +169,92 @@ export default function CrearLista() {
                 <h3 className="font-semibold text-on-surface text-lg mb-4 pb-4 border-b border-outline-variant/30">
                   Añadir Ítems
                 </h3>
-                <div className="flex flex-col md:flex-row gap-4 items-end">
-                  <div className="flex-1">
-                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">Insumo</label>
-                    <select value={form.insumo_id} onChange={e => setForm({ ...form, insumo_id: e.target.value })}
-                      className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary bg-white appearance-none">
-                      <option value="">
-                        {loadingInsumos ? 'Cargando insumos...' : 'Seleccionar insumo...'}
-                      </option>
-                      {insumos.map(i => (
-                        <option key={i.id} value={i.id}>{i.nombre} ({i.categoria})</option>
-                      ))}
-                    </select>
+
+                <div className="flex flex-col gap-4">
+                  {/* Buscador de insumo */}
+                  <div className="relative">
+                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">
+                      Buscar Insumo {!loadingInsumos && <span className="text-on-surface-variant/60">({insumos.length} disponibles)</span>}
+                    </label>
+                    <div className="relative">
+                      <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-lg">search</span>
+                      <input
+                        type="text"
+                        placeholder={loadingInsumos ? 'Cargando insumos...' : 'Escribe el nombre o ingrediente activo...'}
+                        value={busquedaInsumo}
+                        onChange={e => handleBusquedaChange(e.target.value)}
+                        onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
+                        onFocus={() => busquedaInsumo.length >= 2 && sugerencias.length > 0 && setMostrarSugerencias(true)}
+                        disabled={loadingInsumos}
+                        className="w-full pl-10 pr-4 py-3 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-secondary"
+                      />
+                      {insumoSeleccionado && (
+                        <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-green-600">check_circle</span>
+                      )}
+                    </div>
+
+                    {/* Lista de sugerencias */}
+                    {mostrarSugerencias && (
+                      <ul className="absolute z-50 w-full bg-white border border-outline-variant rounded-lg shadow-lg mt-1 max-h-72 overflow-y-auto">
+                        {sugerencias.map(s => (
+                          <li key={s.id}
+                            onMouseDown={() => seleccionarInsumo(s)}
+                            className="px-4 py-3 text-sm hover:bg-gray-50 cursor-pointer border-b border-outline-variant/20 last:border-0">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-on-surface truncate">{s.nombre}</p>
+                                {s.ingrediente_activo && (
+                                  <p className="text-xs text-on-surface-variant truncate flex items-center gap-1 mt-0.5">
+                                    <span className="material-symbols-outlined" style={{fontSize: '14px'}}>science</span>
+                                    {s.ingrediente_activo}
+                                  </p>
+                                )}
+                              </div>
+                              <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${categoriaBadge[s.categoria] || 'bg-gray-100 text-gray-700'}`}>
+                                {s.categoria}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                  <div className="w-full md:w-28">
-                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">Cantidad</label>
-                    <input type="number" min="0.01" step="0.01" placeholder="0"
-                      value={form.cantidad} onChange={e => setForm({ ...form, cantidad: e.target.value })}
-                      className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary" />
+
+                  {/* Mostrar ingrediente activo del seleccionado */}
+                  {insumoSeleccionado?.ingrediente_activo && (
+                    <div className="bg-secondary-container/20 border border-secondary-container rounded-lg p-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-base">science</span>
+                      <p className="text-sm text-on-surface">
+                        Ingrediente activo: <span className="font-semibold">{insumoSeleccionado.ingrediente_activo}</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Cantidad, unidad y botón */}
+                  <div className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="w-full md:w-32">
+                      <label className="block text-xs font-semibold text-on-surface-variant mb-1">Cantidad</label>
+                      <input type="number" min="0.01" step="0.01" placeholder="0"
+                        value={form.cantidad} onChange={e => setForm({ ...form, cantidad: e.target.value })}
+                        className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary" />
+                    </div>
+                    <div className="w-full md:w-32">
+                      <label className="block text-xs font-semibold text-on-surface-variant mb-1">Unidad</label>
+                      <select value={form.unidad} onChange={e => setForm({ ...form, unidad: e.target.value })}
+                        className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary bg-white">
+                        <option value="kg">kg</option>
+                        <option value="litro">Litros</option>
+                        <option value="saco">Sacos</option>
+                        <option value="unidad">Unidades</option>
+                      </select>
+                    </div>
+                    <button onClick={handleAddItem}
+                      disabled={!insumoSeleccionado || !form.cantidad}
+                      className="w-full md:w-auto bg-[#b7d6a8] text-[#2f4f2f] px-6 py-3 rounded-lg text-sm font-bold hover:bg-[#aed198] transition-colors flex items-center justify-center gap-2 h-[46px] shrink-0 disabled:opacity-50">
+                      <span className="material-symbols-outlined text-sm">add</span>
+                      Añadir
+                    </button>
                   </div>
-                  <div className="w-full md:w-28">
-                    <label className="block text-xs font-semibold text-on-surface-variant mb-1">Unidad</label>
-                    <select value={form.unidad} onChange={e => setForm({ ...form, unidad: e.target.value })}
-                      className="w-full border border-outline-variant rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-secondary bg-white">
-                      <option value="kg">kg</option>
-                      <option value="litro">Litros</option>
-                      <option value="saco">Sacos</option>
-                      <option value="unidad">Unidades</option>
-                    </select>
-                  </div>
-                  <button onClick={handleAddItem}
-                    disabled={!form.insumo_id || !form.cantidad}
-                    className="w-full md:w-auto bg-[#b7d6a8] text-[#2f4f2f] px-6 py-3 rounded-lg text-sm font-bold hover:bg-[#aed198] transition-colors flex items-center justify-center gap-2 h-[46px] shrink-0 disabled:opacity-50">
-                    <span className="material-symbols-outlined text-sm">add</span>
-                    Añadir
-                  </button>
                 </div>
               </section>
 
@@ -168,7 +269,7 @@ export default function CrearLista() {
                 {items.length === 0 ? (
                   <div className="py-10 flex flex-col items-center justify-center text-center bg-gray-50 rounded-lg border border-dashed border-outline-variant">
                     <span className="material-symbols-outlined text-4xl text-outline mb-2">inventory_2</span>
-                    <p className="text-sm text-on-surface-variant">Aún no hay ítems. Selecciona un insumo arriba.</p>
+                    <p className="text-sm text-on-surface-variant">Aún no hay ítems. Busca un insumo arriba.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -185,9 +286,14 @@ export default function CrearLista() {
                       <tbody>
                         {items.map(item => (
                           <tr key={item.id} className="border-b border-outline-variant/30 hover:bg-gray-50">
-                            <td className="py-4 px-4 text-sm font-medium">{item.insumo?.nombre}</td>
                             <td className="py-4 px-4">
-                              <span className="bg-[#b7d6a8]/20 text-[#1e3717] px-2 py-1 rounded text-xs font-semibold capitalize">
+                              <p className="text-sm font-medium">{item.insumo?.nombre}</p>
+                              {item.insumo?.ingrediente_activo && (
+                                <p className="text-xs text-on-surface-variant">{item.insumo.ingrediente_activo}</p>
+                              )}
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className={`px-2 py-1 rounded text-xs font-semibold capitalize ${categoriaBadge[item.insumo?.categoria] || 'bg-gray-100 text-gray-700'}`}>
                                 {item.insumo?.categoria}
                               </span>
                             </td>

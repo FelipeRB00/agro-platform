@@ -12,6 +12,7 @@ class Insumo(Base):
     categoria = Column(String(100))  # fertilizante, plaguicida, semilla, herramienta
     unidad_medida = Column(String(30))  # kg, litro, unidad, saco
     creado_en = Column(DateTime, default=datetime.utcnow)
+    ingrediente_activo = Column(String, nullable=True)
 
     catalogo = relationship("CatalogoProveedor", back_populates="insumo")
     items_lista = relationship("ItemLista", back_populates="insumo")
