@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.database import Base
@@ -17,6 +17,8 @@ class Cotizacion(Base):
     proveedor = relationship("Proveedor", back_populates="cotizaciones")
     items = relationship("ItemCotizacion", back_populates="cotizacion")
     pedido = relationship("Pedido", back_populates="cotizacion", uselist=False)
+    acepta_credito = Column(Boolean, default=False)
+    dias_credito = Column(Integer, nullable=True)
 
 
 class ItemCotizacion(Base):

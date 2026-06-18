@@ -11,6 +11,8 @@ class CotizacionCreate(BaseModel):
     lista_id: int
     nota: Optional[str] = None
     items: List[ItemCotizacionCreate]
+    acepta_credito: Optional[bool] = False
+    dias_credito: Optional[int] = None
 
 class ItemCotizacionResponse(BaseModel):
     id: int
@@ -30,6 +32,8 @@ class CotizacionResponse(BaseModel):
     nota: Optional[str] = None
     creado_en: datetime
     items: List[ItemCotizacionResponse] = []
+    acepta_credito: Optional[bool] = False
+    dias_credito: Optional[int] = None
 
     class Config:
         from_attributes = True

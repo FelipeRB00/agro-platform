@@ -17,6 +17,8 @@ export default function ResponderCotizacion() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [catalogo, setCatalogo] = useState([])
+  const [aceptaCredito, setAceptaCredito] = useState(false)
+  const [diasCredito, setDiasCredito] = useState(90)
 
   const navItems = [
     { icon: 'dashboard', label: 'Dashboard', path: '/proveedor/dashboard' },
@@ -93,12 +95,15 @@ export default function ResponderCotizacion() {
       await api.post('/cotizaciones/', {
         lista_id: alerta.lista_id,
         nota: nota || null,
+        acepta_credito: aceptaCredito,
+        dias_credito: aceptaCredito ? diasCredito : null,
         items: alerta.items.map(item => ({
           item_lista_id: item.id,
           precio_unitario: parseFloat(precios[item.id]),
           cantidad_ofrecida: parseFloat(cantidades[item.id])
         }))
       })
+
       await api.put(`/alertas/${alerta.alerta_id}/leer`)
       setEnviado(true)
       setTimeout(() => navigate('/proveedor/solicitudes'), 2000)
@@ -278,7 +283,32 @@ export default function ResponderCotizacion() {
                     <span className="text-2xl font-bold text-primary">${calcularTotal().toLocaleString('es-CL')}</span>
                   </div>
                 )}
+                {/* Opción de crédito */}
+                <div className="border border-outline-variant/30 rounded-lg p-4 bg-gray-50">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={aceptaCredito}
+                      onChange={e => setAceptaCredito(e.target.checked)}
+                      className="w-4 h-4 accent-primary" />
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">Ofrecer venta a crédito</p>
+                      <p className="text-xs text-on-surface-variant">Permite al agricultor pagar a plazo (ej. tras la cosecha)</p>
+                    </div>
+                  </label>
 
+                  {aceptaCredito && (
+                    <div className="mt-4 pl-7">
+                      <label className="block text-xs font-semibold text-on-surface-variant mb-1">Plazo de pago</label>
+                      <select value={diasCredito} onChange={e => setDiasCredito(parseInt(e.target.value))}
+                        className="border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-secondary bg-white">
+                        <option value={30}>30 días</option>
+                        <option value={60}>60 días</option>
+                        <option value={90}>90 días</option>
+                        <option value={120}>120 días</option>
+                        <option value={180}>180 días (a cosecha)</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
                 <div>
                   <label className="block text-xs font-semibold text-on-surface-variant mb-2">Nota Opcional</label>
                   <textarea placeholder="Ej. El flete está incluido en el precio..."

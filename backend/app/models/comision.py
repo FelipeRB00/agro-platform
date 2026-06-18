@@ -23,3 +23,9 @@ class Comision(Base):
     total_con_iva = Column(Float, nullable=False, default=0)
 
     creado_en = Column(DateTime(timezone=True), server_default=func.now())
+    
+    metodo_pago = Column(String, default="contado")        # contado / credito
+    estado_pago = Column(String, default="pendiente")       # pagado / pendiente
+    fecha_vencimiento = Column(DateTime, nullable=True)      # para crédito
+    comision_depositada = Column(Boolean, default=False)     # si el proveedor ya pagó su comisión
+    fecha_deposito_comision = Column(DateTime, nullable=True)

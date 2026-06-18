@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List
+from datetime import datetime, timedelta
+
 
 
 from app.db.database import get_db
@@ -174,7 +176,9 @@ def crear_cotizacion(
             lista_id=data.lista_id,
             proveedor_id=proveedor.id,
             estado="pendiente",
-            nota=data.nota
+            nota=data.nota,
+            acepta_credito=data.acepta_credito or False,
+            dias_credito=data.dias_credito
         )
         db.add(cotizacion)
         db.flush()
@@ -366,7 +370,9 @@ def cotizaciones_por_lista(
             "total": total,
             "nota": c.nota,
             "creado_en": c.creado_en,
-            "items": items
+            "items": items,
+            "acepta_credito": c.acepta_credito,
+            "dias_credito": c.dias_credito
         })
 
     return resultado
@@ -404,7 +410,7 @@ def desglose_pago(
         })
 
     subtotal = sum(float(i.subtotal or 0) for i in cotizacion.items)
-    COMISION_PCT = 0.005
+    COMISION_PCT = 0.025   # 2.5% que paga el agricultor (fee de uso de la app)
     IVA_PCT = 0.19
 
     comision_agricultor = round(subtotal * COMISION_PCT, 0)
@@ -423,7 +429,9 @@ def desglose_pago(
         "comision_porcentaje": COMISION_PCT * 100,
         "iva": iva,
         "iva_porcentaje": IVA_PCT * 100,
-        "total": total
+        "total": total,
+        "acepta_credito": cotizacion.acepta_credito,
+        "dias_credito": cotizacion.dias_credito
     }
 
 # ─────────────────────────────────────────────────────────────
@@ -433,6 +441,7 @@ def desglose_pago(
 @router.put("/cotizaciones/{cotizacion_id}/aceptar", tags=["Cotizaciones"])
 def aceptar_cotizacion(
     cotizacion_id: int,
+    metodo_pago: str = Body("contado", embed=True),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_rol("agricultor"))
 ):
@@ -501,9 +510,19 @@ def aceptar_cotizacion(
     
     # ─── Registrar comisión ──────────────────────────────────────
     monto_venta = sum(float(i.subtotal or 0) for i in cotizacion.items)
-    comision_agricultor = round(monto_venta * 0.005, 0)
-    comision_proveedor = round(monto_venta * 0.005, 0)
+    comision_agricultor = round(monto_venta * 0.025, 0)   # 2.5% agricultor
+    comision_proveedor = round(monto_venta * 0.025, 0)    # 2.5% proveedor
     iva = round(monto_venta * 0.19, 0)
+
+    # Calcular vencimiento si es a crédito
+    fecha_vencimiento = None
+    estado_pago = "pendiente"
+    if metodo_pago == "credito" and cotizacion.acepta_credito:
+        dias = cotizacion.dias_credito or 90
+        fecha_vencimiento = datetime.now() + timedelta(days=dias)
+        estado_pago = "pendiente"
+    elif metodo_pago == "contado":
+        estado_pago = "pagado"  # contado se asume pagado al momento
 
     comision = Comision(
         cotizacion_id=cotizacion.id,
@@ -515,7 +534,11 @@ def aceptar_cotizacion(
         comision_proveedor=comision_proveedor,
         comision_total=comision_agricultor + comision_proveedor,
         iva=iva,
-        total_con_iva=monto_venta + iva
+        total_con_iva=monto_venta + iva,
+        metodo_pago=metodo_pago,
+        estado_pago=estado_pago,
+        fecha_vencimiento=fecha_vencimiento,
+        comision_depositada=False
     )
     db.add(comision)
 

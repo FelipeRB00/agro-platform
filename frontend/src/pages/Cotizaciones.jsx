@@ -5,7 +5,6 @@ import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
-import ConfirmDialog from '../components/ConfirmDialog'
 
 const estadoBadge = {
   aceptada: 'bg-green-100 text-green-800',
@@ -32,15 +31,9 @@ export default function Cotizaciones() {
   const [aceptando, setAceptando] = useState(null)
   const [mensaje, setMensaje] = useState('')
 
-  // Estado del dialog
-  const [dialog, setDialog] = useState({
-    abierto: false,
-    titulo: '',
-    mensaje: '',
-    tipo: 'info',
-    confirmText: 'Confirmar',
-    onConfirm: null
-  })
+  // Modal de método de pago
+  const [modalPago, setModalPago] = useState({ abierto: false, cotizacion: null })
+  const [metodoElegido, setMetodoElegido] = useState('contado')
 
   const navItems = [
     { icon: 'home', label: 'Inicio', path: '/dashboard' },
@@ -79,13 +72,25 @@ export default function Cotizaciones() {
       .finally(() => setLoadingListas(false))
   }, [])
 
-  const cerrarDialog = () => setDialog(d => ({ ...d, abierto: false }))
+  // Abre el modal de método de pago
+  const handleAceptar = (cotizacion) => {
+    setMetodoElegido('contado')
+    setModalPago({ abierto: true, cotizacion })
+  }
 
-  // Ejecuta la aceptación
-  const ejecutarAceptar = async (cotizacionId) => {
-    setAceptando(cotizacionId)
+  const cerrarModalPago = () => setModalPago({ abierto: false, cotizacion: null })
+
+  // Ejecuta la aceptación con el método elegido
+  const confirmarAceptar = async () => {
+    const cotizacion = modalPago.cotizacion
+    if (!cotizacion) return
+
+    cerrarModalPago()
+    setAceptando(cotizacion.id)
     try {
-      await api.put(`/cotizaciones/${cotizacionId}/aceptar`)
+      await api.put(`/cotizaciones/${cotizacion.id}/aceptar`, {
+        metodo_pago: metodoElegido
+      })
       setMensaje('✅ ¡Cotización aceptada! La lista ha sido cerrada.')
 
       const res = await api.get(`/cotizaciones/por-lista/${listaSeleccionada.id}`)
@@ -98,27 +103,13 @@ export default function Cotizaciones() {
       )
       setListaSeleccionada(prev => ({ ...prev, estado: 'cerrada' }))
 
-      navigate(`/pago/${cotizacionId}`)
+      // Redirigir al pago, pasando el método elegido
+      navigate(`/pago/${cotizacion.id}?metodo=${metodoElegido}`)
     } catch (err) {
       alert(err.response?.data?.detail || 'Error al aceptar cotización')
     } finally {
       setAceptando(null)
     }
-  }
-
-  // Abre el dialog de confirmación
-  const handleAceptar = (cotizacionId) => {
-    setDialog({
-      abierto: true,
-      titulo: 'Aceptar Cotización',
-      mensaje: 'Al aceptar esta cotización, las demás serán rechazadas automáticamente y serás dirigido a la pantalla de pago. ¿Deseas continuar?',
-      tipo: 'success',
-      confirmText: 'Sí, aceptar y pagar',
-      onConfirm: () => {
-        cerrarDialog()
-        ejecutarAceptar(cotizacionId)
-      }
-    })
   }
 
   const totalCotizacion = (cot) => cot.items.reduce((acc, i) => acc + i.subtotal, 0)
@@ -217,13 +208,20 @@ export default function Cotizaciones() {
                             </div>
                           )}
 
-                          {/* Nombre + estado (el estado ahora va al lado del nombre, no en la esquina) */}
+                          {/* Nombre + estado */}
                           <div className="mb-5 pr-28">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="font-bold text-on-surface text-lg">{cot.proveedor_nombre}</h4>
                               <span className={`text-xs font-semibold px-3 py-1 rounded-full ${estadoBadge[cot.estado]}`}>
                                 {estadoLabel[cot.estado]}
                               </span>
+                              {/* Badge de crédito */}
+                              {cot.acepta_credito && (
+                                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
+                                  <span className="material-symbols-outlined" style={{fontSize: '14px'}}>schedule</span>
+                                  Crédito {cot.dias_credito}d
+                                </span>
+                              )}
                             </div>
                             {cot.nota && <p className="text-sm text-on-surface-variant italic mt-1">"{cot.nota}"</p>}
                           </div>
@@ -274,7 +272,7 @@ export default function Cotizaciones() {
                             </div>
 
                             {cot.estado === 'pendiente' && listaSeleccionada?.estado !== 'cerrada' && (
-                              <button onClick={() => handleAceptar(cot.id)}
+                              <button onClick={() => handleAceptar(cot)}
                                 disabled={aceptando === cot.id}
                                 className="bg-primary text-white font-semibold text-sm py-3 px-6 rounded-lg flex items-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-60">
                                 {aceptando === cot.id ? 'Aceptando...' : 'Aceptar Cotización'}
@@ -301,17 +299,90 @@ export default function Cotizaciones() {
         </main>
       </div>
 
-      {/* Dialog de confirmación */}
-      <ConfirmDialog
-        abierto={dialog.abierto}
-        titulo={dialog.titulo}
-        mensaje={dialog.mensaje}
-        tipo={dialog.tipo}
-        confirmText={dialog.confirmText}
-        cancelText="Cancelar"
-        onConfirm={dialog.onConfirm}
-        onCancel={cerrarDialog}
-      />
+      {/* Modal de método de pago */}
+      {modalPago.abierto && modalPago.cotizacion && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-outline-variant/30">
+              <h3 className="font-bold text-on-surface text-lg">Método de Pago</h3>
+              <p className="text-sm text-on-surface-variant">
+                Proveedor: <span className="font-semibold">{modalPago.cotizacion.proveedor_nombre}</span>
+              </p>
+            </div>
+
+            <div className="p-6">
+              <p className="text-sm text-on-surface-variant mb-4">
+                Elige cómo deseas pagar esta compra. Al confirmar, las demás cotizaciones serán rechazadas.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Opción Contado */}
+                <button onClick={() => setMetodoElegido('contado')}
+                  className={`p-4 rounded-xl border-2 text-left transition-all
+                    ${metodoElegido === 'contado'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-outline-variant hover:border-primary/40'}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`material-symbols-outlined ${metodoElegido === 'contado' ? 'text-primary' : 'text-on-surface-variant'}`}>
+                      payments
+                    </span>
+                    <span className="font-semibold text-on-surface">Contado</span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant">Pago inmediato al proveedor</p>
+                </button>
+
+                {/* Opción Crédito */}
+                <button
+                  onClick={() => modalPago.cotizacion.acepta_credito && setMetodoElegido('credito')}
+                  disabled={!modalPago.cotizacion.acepta_credito}
+                  className={`p-4 rounded-xl border-2 text-left transition-all
+                    ${!modalPago.cotizacion.acepta_credito
+                      ? 'border-outline-variant/30 bg-gray-50 opacity-60 cursor-not-allowed'
+                      : metodoElegido === 'credito'
+                        ? 'border-primary bg-primary/5'
+                        : 'border-outline-variant hover:border-primary/40'}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`material-symbols-outlined ${metodoElegido === 'credito' ? 'text-primary' : 'text-on-surface-variant'}`}>
+                      schedule
+                    </span>
+                    <span className="font-semibold text-on-surface">A crédito</span>
+                  </div>
+                  {modalPago.cotizacion.acepta_credito ? (
+                    <p className="text-xs text-on-surface-variant">
+                      Pago a {modalPago.cotizacion.dias_credito} días
+                    </p>
+                  ) : (
+                    <p className="text-xs text-on-surface-variant">Este proveedor no ofrece crédito</p>
+                  )}
+                </button>
+              </div>
+
+              {/* Info adicional del crédito */}
+              {metodoElegido === 'credito' && (
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-start gap-2">
+                  <span className="material-symbols-outlined text-blue-500 text-base mt-0.5">info</span>
+                  <p className="text-xs text-blue-700">
+                    Te comprometes a pagar al proveedor en un plazo de {modalPago.cotizacion.dias_credito} días.
+                    El comprobante quedará registrado como pago pendiente.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-outline-variant/30 bg-gray-50 flex justify-end gap-3">
+              <button onClick={cerrarModalPago}
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold text-on-surface border border-outline-variant hover:bg-gray-100">
+                Cancelar
+              </button>
+              <button onClick={confirmarAceptar}
+                className="px-5 py-2.5 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                Confirmar y continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
