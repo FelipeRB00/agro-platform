@@ -544,3 +544,91 @@ def aceptar_cotizacion(
     db.commit()
 
     return {"message": "Cotización aceptada exitosamente. Stock actualizado."}
+
+# ═══════════════════════════════════════════════════════════════════
+# ENDPOINTS: COMISIONES DEL PROVEEDOR
+# Agregar al final de cotizaciones.py (o donde tengas rutas de proveedor)
+# Requiere imports que ya deberías tener; si no, agrégalos:
+#   from app.models.comision import Comision
+#   from app.models.proveedor import Proveedor
+#   from app.models.usuario import Usuario
+#   from app.core.dependencies import require_rol
+# ═══════════════════════════════════════════════════════════════════
+
+@router.get("/mis-comisiones", tags=["Comisiones Proveedor"])
+def mis_comisiones(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_rol("proveedor"))
+):
+    """
+    Resumen de comisiones que el proveedor debe depositar al admin,
+    más los datos bancarios de la cuenta de cobro del administrador.
+    """
+    from app.models.comision import Comision
+    from app.models.proveedor import Proveedor
+    from app.models.agricultor import Agricultor
+
+    # Buscar el proveedor del usuario actual
+    proveedor = db.query(Proveedor).filter(
+        Proveedor.usuario_id == current_user.id
+    ).first()
+    if not proveedor:
+        raise HTTPException(status_code=404, detail="Perfil de proveedor no encontrado")
+
+    # Comisiones de este proveedor
+    comisiones = db.query(Comision).filter(
+        Comision.proveedor_id == proveedor.id
+    ).order_by(Comision.creado_en.desc()).all()
+
+    total_adeudado = 0
+    total_depositado = 0
+    total_ventas = 0
+    detalle = []
+
+    for c in comisiones:
+        comision_monto = float(c.comision_proveedor or c.comision_total or 0)
+        venta = float(c.monto_venta or 0)
+        total_ventas += venta
+
+        if c.comision_depositada:
+            total_depositado += comision_monto
+        else:
+            total_adeudado += comision_monto
+
+        agricultor = db.query(Agricultor).filter(Agricultor.id == c.agricultor_id).first()
+        usuario_agr = agricultor.usuario if agricultor else None
+
+        detalle.append({
+            "comision_id": c.id,
+            "fecha": c.creado_en,
+            "agricultor": usuario_agr.nombre if usuario_agr else "Desconocido",
+            "monto_venta": venta,
+            "comision": comision_monto,
+            "metodo_pago": c.metodo_pago or "contado",
+            "comision_depositada": bool(c.comision_depositada),
+            "fecha_deposito": c.fecha_deposito_comision,
+        })
+
+    # Datos bancarios del admin (cuenta de cobro)
+    admin = db.query(Usuario).filter(Usuario.rol == "admin").first()
+    datos_cobro = None
+    if admin:
+        datos_cobro = {
+            "banco": admin.banco,
+            "tipo_cuenta": admin.tipo_cuenta,
+            "numero_cuenta": admin.numero_cuenta,
+            "rut_titular": admin.rut_titular,
+            "nombre_titular": admin.nombre_titular,
+            "email": admin.email,
+            "completos": bool(admin.numero_cuenta and admin.banco)
+        }
+
+    return {
+        "total_adeudado": round(total_adeudado, 0),
+        "total_depositado": round(total_depositado, 0),
+        "total_ventas": round(total_ventas, 0),
+        "num_ventas": len(comisiones),
+        "porcentaje_comision": 3,
+        "datos_cobro_admin": datos_cobro,
+        "detalle": detalle
+    }

@@ -17,6 +17,7 @@ export default function DashboardProveedor() {
     { icon: 'dashboard', label: 'Dashboard', path: '/proveedor/dashboard', active: true },
     { icon: 'pending_actions', label: 'Solicitudes', path: '/proveedor/solicitudes' },
     { icon: 'inventory_2', label: 'Catálogo', path: '/proveedor/catalogo' },
+    { icon: 'account_balance_wallet', label: 'Mis Comisiones', path: '/proveedor/comisiones' },
     { icon: 'settings', label: 'Configuración', path: '/configuracion' },
   ]
 

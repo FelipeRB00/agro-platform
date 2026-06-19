@@ -25,6 +25,7 @@ import DashboardProveedor from './pages/DashboardProveedor'
 import SolicitudesProveedor from './pages/SolicitudesProveedor'
 import CatalogoProveedor from './pages/CatalogoProveedor'
 import ResponderCotizacion from './pages/ResponderCotizacion'
+import MisComisiones from './pages/MisComisiones'
 
 // Admin
 import Usuarios from './pages/Usuarios'
@@ -114,6 +115,12 @@ function AppContent() {
         <Route path="/proveedor/cotizar" element={
           <ProtectedRoute roles={['proveedor']}>
             <ResponderCotizacion />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/proveedor/comisiones" element={
+          <ProtectedRoute roles={['proveedor']}>
+            <MisComisiones />
           </ProtectedRoute>
         } />
 
