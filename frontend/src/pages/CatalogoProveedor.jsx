@@ -93,7 +93,8 @@ export default function CatalogoProveedor() {
     setForm({
       ...form,
       nombre_libre: insumo.nombre,
-      categoria: insumo.categoria || 'fertilizante'
+      categoria: insumo.categoria || 'fertilizante',
+      ingrediente_activo: insumo.ingrediente_activo || form.ingrediente_activo
     })
     setMostrarSugerencias(false)
   }
@@ -457,9 +458,17 @@ export default function CatalogoProveedor() {
                       {sugerencias.map(s => (
                         <li key={s.id}
                           onMouseDown={() => seleccionarSugerencia(s)}
-                          className="px-4 py-2.5 text-sm hover:bg-gray-50 cursor-pointer flex justify-between items-center border-b border-outline-variant/20 last:border-0">
-                          <span className="font-medium">{s.nombre}</span>
-                          <span className="text-xs text-on-surface-variant capitalize bg-gray-100 px-2 py-0.5 rounded">
+                          className="px-4 py-2.5 text-sm hover:bg-gray-50 cursor-pointer flex justify-between items-start gap-2 border-b border-outline-variant/20 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{s.nombre}</p>
+                            {s.ingrediente_activo && (
+                              <p className="text-xs text-on-surface-variant truncate flex items-center gap-1 mt-0.5">
+                                <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>science</span>
+                                {s.ingrediente_activo}
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-xs text-on-surface-variant capitalize bg-gray-100 px-2 py-0.5 rounded shrink-0">
                             {s.categoria}
                           </span>
                         </li>

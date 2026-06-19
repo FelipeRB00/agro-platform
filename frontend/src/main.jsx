@@ -18,7 +18,7 @@ import Cotizaciones from './pages/Cotizaciones'
 import HistorialPedidos from './pages/HistorialPedidos'
 import InteligenciaArtificial from './pages/InteligenciaArtificial'
 import PagoCotizacion from './pages/PagoCotizacion'
-import PagoResultado from './pages/PagoResultado'
+
 
 // Proveedor
 import DashboardProveedor from './pages/DashboardProveedor'
@@ -92,11 +92,6 @@ function AppContent() {
         <Route path="/pago/:cotizacionId" element={
           <ProtectedRoute roles={['agricultor']}>
             <PagoCotizacion />
-          </ProtectedRoute>
-        } />
-        <Route path="/pago-resultado" element={
-          <ProtectedRoute roles={['agricultor']}>
-            <PagoResultado />
           </ProtectedRoute>
         } />
 

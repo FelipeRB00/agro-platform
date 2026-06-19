@@ -410,12 +410,10 @@ def desglose_pago(
         })
 
     subtotal = sum(float(i.subtotal or 0) for i in cotizacion.items)
-    COMISION_PCT = 0.025   # 2.5% que paga el agricultor (fee de uso de la app)
-    IVA_PCT = 0.19
-
-    comision_agricultor = round(subtotal * COMISION_PCT, 0)
-    iva = round(subtotal * IVA_PCT, 0)
-    total = subtotal + iva + comision_agricultor
+    # El agricultor ya no paga comisión ni IVA. Paga el precio limpio.
+    comision_agricultor = 0
+    iva = 0
+    total = subtotal
 
     return {
         "cotizacion_id": cotizacion.id,
@@ -426,9 +424,9 @@ def desglose_pago(
         "items": items,
         "subtotal": subtotal,
         "comision_agricultor": comision_agricultor,
-        "comision_porcentaje": COMISION_PCT * 100,
+        "comision_porcentaje": 0,
         "iva": iva,
-        "iva_porcentaje": IVA_PCT * 100,
+        "iva_porcentaje": 0,
         "total": total,
         "acepta_credito": cotizacion.acepta_credito,
         "dias_credito": cotizacion.dias_credito
@@ -510,9 +508,9 @@ def aceptar_cotizacion(
     
     # ─── Registrar comisión ──────────────────────────────────────
     monto_venta = sum(float(i.subtotal or 0) for i in cotizacion.items)
-    comision_agricultor = round(monto_venta * 0.025, 0)   # 2.5% agricultor
-    comision_proveedor = round(monto_venta * 0.025, 0)    # 2.5% proveedor
-    iva = round(monto_venta * 0.19, 0)
+    comision_agricultor = 0                                # el agricultor ya no paga fee
+    comision_proveedor = round(monto_venta * 0.03, 0)     # 3% proveedor
+    iva = 0                                                # sin IVA
 
     # Calcular vencimiento si es a crédito
     fecha_vencimiento = None

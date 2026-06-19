@@ -182,7 +182,7 @@ export default function PagosProveedores() {
                 <div className="bg-white border border-[#dfe7da] rounded-2xl shadow-sm overflow-hidden">
                   <div className="p-5 border-b border-[#dfe7da]">
                     <h3 className="font-bold text-on-surface text-lg">Comisiones Adeudadas por Proveedor</h3>
-                    <p className="text-xs text-on-surface-variant">Cada proveedor debe depositar el 5% de sus ventas a fin de mes</p>
+                    <p className="text-xs text-on-surface-variant">Cada proveedor debe depositar el 3% de sus ventas a fin de mes</p>
                   </div>
 
                   {resumen.length === 0 ? (
@@ -262,7 +262,7 @@ export default function PagosProveedores() {
                             <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase">Proveedor</th>
                             <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase">Agricultor</th>
                             <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase text-right">Venta</th>
-                            <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase text-right">Comisión (5%)</th>
+                            <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase text-right">Comisión (3%)</th>
                             <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase text-center">Método</th>
                             <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase text-center">Estado</th>
                             <th className="p-4 text-xs font-semibold text-on-surface-variant uppercase text-right">Acción</th>

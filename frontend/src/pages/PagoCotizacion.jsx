@@ -15,9 +15,8 @@ export default function PagoCotizacion() {
 
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [pagando, setPagando] = useState(false)
-  const [redirigiendo, setRedirigiendo] = useState(false)
-  const [pagado, setPagado] = useState(false)
+  const [generando, setGenerando] = useState(false)
+  const [generada, setGenerada] = useState(false)
   const [error, setError] = useState('')
 
   const esCredito = metodo === 'credito'
@@ -33,11 +32,11 @@ export default function PagoCotizacion() {
   useEffect(() => {
     api.get(`/cotizaciones/${cotizacionId}/desglose-pago`)
       .then(res => setData(res.data))
-      .catch(() => setError('No se pudo cargar el detalle de pago'))
+      .catch(() => setError('No se pudo cargar el detalle de la orden'))
       .finally(() => setLoading(false))
   }, [cotizacionId])
 
-  const descargarComprobante = async () => {
+  const descargarOrden = async () => {
     try {
       const token = localStorage.getItem('token')
       const res = await fetch(
@@ -48,35 +47,22 @@ export default function PagoCotizacion() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `comprobante_CT-${String(cotizacionId).padStart(5, '0')}.pdf`
+      a.download = `orden_compra_OC-${String(cotizacionId).padStart(5, '0')}.pdf`
       a.click()
       window.URL.revokeObjectURL(url)
     } catch {
-      alert('Error al descargar el comprobante')
+      alert('Error al descargar la orden de compra')
     }
   }
 
-  // Pago real con MercadoPago (solo contado)
-  const pagarConMercadoPago = async () => {
-    setRedirigiendo(true)
-    setError('')
-    try {
-      const res = await api.post(`/pagos/crear-preferencia/${cotizacionId}`)
-      window.location.href = res.data.init_point
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Error al iniciar el pago con MercadoPago')
-      setRedirigiendo(false)
-    }
-  }
-
-  // Confirmar (contado simulado o compromiso a crédito)
-  const confirmarPago = async () => {
-    setPagando(true)
+  // Generar la orden de compra
+  const generarOrden = async () => {
+    setGenerando(true)
     setTimeout(async () => {
-      setPagado(true)
-      setPagando(false)
-      await descargarComprobante()
-    }, 1500)
+      setGenerada(true)
+      setGenerando(false)
+      await descargarOrden()
+    }, 1200)
   }
 
   // Calcular fecha de vencimiento (para crédito)
@@ -92,7 +78,7 @@ export default function PagoCotizacion() {
       <div className="bg-[#f4f8f2] min-h-screen flex">
         <Sidebar navItems={navItems} tipo="agricultor" />
         <div className="flex-1 md:ml-64 flex items-center justify-center">
-          <LoadingSpinner texto="Cargando detalle de pago..." />
+          <LoadingSpinner texto="Cargando orden de compra..." />
         </div>
       </div>
     )
@@ -120,48 +106,47 @@ export default function PagoCotizacion() {
     <div className="bg-[#f4f8f2] text-on-surface font-sans min-h-screen flex">
       <Sidebar navItems={navItems} tipo="agricultor" />
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
-        <Header titulo={esCredito ? 'Compra a Crédito' : 'Pago de Compra'} />
+        <Header titulo="Orden de Compra" />
         <main className="flex-1 p-5 md:p-8 max-w-4xl mx-auto w-full">
 
-          {pagado ? (
+          {generada ? (
             // Pantalla de éxito
             <div className="bg-white rounded-2xl border border-outline-variant/30 shadow-sm p-10 text-center">
-              <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${esCredito ? 'bg-blue-100' : 'bg-green-100'}`}>
-                <span className={`material-symbols-outlined text-5xl ${esCredito ? 'text-blue-600' : 'text-green-600'}`}>
-                  {esCredito ? 'event_available' : 'check_circle'}
-                </span>
+              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
+                <span className="material-symbols-outlined text-5xl text-green-600">task</span>
               </div>
-              <h2 className="text-2xl font-bold text-on-surface mb-2">
-                {esCredito ? '¡Compra a crédito registrada!' : '¡Pago realizado con éxito!'}
-              </h2>
+              <h2 className="text-2xl font-bold text-on-surface mb-2">¡Orden de compra generada!</h2>
               <p className="text-on-surface-variant mb-2">
-                Tu compra con <span className="font-semibold">{data.proveedor}</span> {esCredito ? 'quedó registrada.' : 'se ha completado.'}
+                Tu orden con <span className="font-semibold">{data.proveedor}</span> quedó registrada.
+              </p>
+              <p className="text-sm text-on-surface-variant mb-1">
+                Método de pago: <span className="font-semibold">{esCredito ? `Crédito a ${data.dias_credito} días` : 'Contado'}</span>
               </p>
               {esCredito && (
                 <p className="text-sm text-blue-700 font-semibold mb-2">
-                  Fecha de pago comprometida: {fechaVencimiento()}
+                  Compromiso de pago: {fechaVencimiento()}
                 </p>
               )}
               <p className="text-sm text-on-surface-variant mb-8">
-                El comprobante se descargó automáticamente.
+                La orden se descargó automáticamente. El pago se gestiona a través del sistema de la empresa.
               </p>
 
               <div className="bg-gray-50 rounded-xl p-6 max-w-sm mx-auto mb-8">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-on-surface-variant">{esCredito ? 'Monto a pagar' : 'Total pagado'}</span>
+                  <span className="text-on-surface-variant">Total de la orden</span>
                   <span className="font-bold text-primary text-lg">{fmt(data.total)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-on-surface-variant">
-                  <span>Comprobante</span>
-                  <span>CT-{String(cotizacionId).padStart(5, '0')}</span>
+                  <span>N° de orden</span>
+                  <span>OC-{String(cotizacionId).padStart(5, '0')}</span>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button onClick={descargarComprobante}
+                <button onClick={descargarOrden}
                   className="flex items-center justify-center gap-2 px-6 py-3 border border-primary text-primary rounded-lg font-semibold text-sm hover:bg-primary/5 transition-colors">
                   <span className="material-symbols-outlined text-sm">download</span>
-                  Descargar comprobante
+                  Descargar orden
                 </button>
                 <button onClick={() => navigate('/pedidos')}
                   className="flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-semibold text-sm hover:bg-primary/90 transition-colors">
@@ -171,36 +156,32 @@ export default function PagoCotizacion() {
               </div>
             </div>
           ) : (
-            // Pantalla de checkout
+            // Pantalla de revisión de la orden
             <>
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-on-surface">
-                  {esCredito ? 'Confirmar compra a crédito' : 'Resumen de tu compra'}
-                </h2>
+                <h2 className="text-2xl font-bold text-on-surface">Revisa tu orden de compra</h2>
                 <p className="text-sm text-on-surface-variant">
                   Lista: <span className="font-semibold">{data.lista_titulo}</span> · Proveedor: <span className="font-semibold">{data.proveedor}</span>
                 </p>
               </div>
 
-              {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3 text-sm">
-                  <span className="material-symbols-outlined text-base">error</span>
-                  {error}
+              {/* Banner del método de pago */}
+              <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 border
+                ${esCredito ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
+                <span className={`material-symbols-outlined ${esCredito ? 'text-blue-600' : 'text-green-600'}`}>
+                  {esCredito ? 'schedule' : 'payments'}
+                </span>
+                <div>
+                  <p className={`font-semibold ${esCredito ? 'text-blue-800' : 'text-green-800'}`}>
+                    {esCredito ? `Pago a crédito (${data.dias_credito} días)` : 'Pago al contado'}
+                  </p>
+                  <p className={`text-sm ${esCredito ? 'text-blue-700' : 'text-green-700'}`}>
+                    {esCredito
+                      ? `Compromiso de pago antes del ${fechaVencimiento()}. Quedará estipulado en la orden.`
+                      : 'El pago se realiza directamente al proveedor según el método de la empresa.'}
+                  </p>
                 </div>
-              )}
-
-              {/* Banner de crédito */}
-              {esCredito && (
-                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
-                  <span className="material-symbols-outlined text-blue-600">schedule</span>
-                  <div>
-                    <p className="font-semibold text-blue-800">Compra a crédito ({data.dias_credito} días)</p>
-                    <p className="text-sm text-blue-700">
-                      No pagas ahora. Te comprometes a pagar al proveedor antes del <span className="font-semibold">{fechaVencimiento()}</span>.
-                    </p>
-                  </div>
-                </div>
-              )}
+              </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -224,98 +205,39 @@ export default function PagoCotizacion() {
                   </div>
                 </div>
 
-                {/* Desglose */}
+                {/* Resumen */}
                 <div className="bg-white rounded-2xl border border-outline-variant/30 shadow-sm p-6 h-fit">
-                  <h3 className="font-bold text-on-surface mb-4">Desglose</h3>
+                  <h3 className="font-bold text-on-surface mb-4">Resumen</h3>
 
                   <div className="space-y-3 text-sm">
                     <div className="flex justify-between">
                       <span className="text-on-surface-variant">Subtotal</span>
                       <span className="text-on-surface">{fmt(data.subtotal)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-on-surface-variant">
-                        Comisión app ({data.comision_porcentaje}%)
-                      </span>
-                      <span className="text-on-surface">{fmt(data.comision_agricultor)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-on-surface-variant">
-                        IVA ({data.iva_porcentaje}%)
-                      </span>
-                      <span className="text-on-surface">{fmt(data.iva)}</span>
-                    </div>
                     <div className="border-t border-outline-variant/30 pt-3 flex justify-between items-center">
-                      <span className="font-bold text-on-surface">Total</span>
+                      <span className="font-bold text-on-surface">Total orden</span>
                       <span className="text-2xl font-bold text-primary">{fmt(data.total)}</span>
                     </div>
                   </div>
 
-                  {esCredito ? (
-                    // CRÉDITO: confirmar compromiso
-                    <>
-                      <button onClick={confirmarPago} disabled={pagando}
-                        className="w-full mt-6 bg-blue-600 text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-blue-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                        {pagando ? (
-                          <>
-                            <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                            Registrando...
-                          </>
-                        ) : (
-                          <>
-                            <span className="material-symbols-outlined text-lg">event_available</span>
-                            Confirmar compra a crédito
-                          </>
-                        )}
-                      </button>
-                      <p className="text-xs text-on-surface-variant/70 text-center mt-3">
-                        Se registrará tu compromiso de pago a {data.dias_credito} días
-                      </p>
-                    </>
-                  ) : (
-                    // CONTADO: pago normal
-                    <>
-                      <button onClick={pagarConMercadoPago} disabled={redirigiendo || pagando}
-                        className="w-full mt-6 bg-[#009ee3] text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-[#008fcc] transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                        {redirigiendo ? (
-                          <>
-                            <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                            Redirigiendo...
-                          </>
-                        ) : (
-                          <>
-                            <span className="material-symbols-outlined text-lg">credit_card</span>
-                            Pagar con MercadoPago
-                          </>
-                        )}
-                      </button>
+                  <button onClick={generarOrden} disabled={generando}
+                    className="w-full mt-6 bg-primary text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
+                    {generando ? (
+                      <>
+                        <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        Generando...
+                      </>
+                    ) : (
+                      <>
+                        <span className="material-symbols-outlined text-lg">receipt_long</span>
+                        Generar Orden de Compra
+                      </>
+                    )}
+                  </button>
 
-                      <div className="flex items-center gap-3 my-4">
-                        <div className="flex-1 h-px bg-outline-variant/30"></div>
-                        <span className="text-xs text-on-surface-variant">o</span>
-                        <div className="flex-1 h-px bg-outline-variant/30"></div>
-                      </div>
-
-                      <button onClick={confirmarPago} disabled={pagando || redirigiendo}
-                        className="w-full bg-primary text-white py-3.5 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-all disabled:opacity-60 flex items-center justify-center gap-2">
-                        {pagando ? (
-                          <>
-                            <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                            Procesando...
-                          </>
-                        ) : (
-                          <>
-                            <span className="material-symbols-outlined text-lg">receipt_long</span>
-                            Generar comprobante interno
-                          </>
-                        )}
-                      </button>
-
-                      <p className="text-xs text-on-surface-variant/70 text-center mt-3">
-                        Pago de prueba · Comprobante sin validez tributaria
-                      </p>
-                    </>
-                  )}
+                  <p className="text-xs text-on-surface-variant/70 text-center mt-3">
+                    El pago se gestiona a través del sistema de la empresa
+                  </p>
                 </div>
               </div>
             </>
