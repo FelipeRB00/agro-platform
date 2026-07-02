@@ -1,9 +1,10 @@
 import axios from 'axios'
+import { API_URL } from '../config'
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8001/api/v1',
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000 // 10 segundos máximo
+  timeout: 15000 // 15 segundos máximo (producción puede ser más lenta)
 })
 
 // Interceptor de request - agrega token automáticamente

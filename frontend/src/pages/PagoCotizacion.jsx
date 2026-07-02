@@ -4,6 +4,7 @@ import api from '../services/api'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { API_URL } from '../config'
 
 const fmt = (n) => '$' + (n || 0).toLocaleString('es-CL')
 
@@ -40,7 +41,7 @@ export default function PagoCotizacion() {
     try {
       const token = localStorage.getItem('token')
       const res = await fetch(
-        `http://127.0.0.1:8001/api/v1/reportes/comprobante/${cotizacionId}`,
+        `${API_URL}/reportes/comprobante/${cotizacionId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const blob = await res.blob()

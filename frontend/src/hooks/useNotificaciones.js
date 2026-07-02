@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { WS_BASE } from '../config'
 
 export function useNotificaciones(onNotificacion) {
   const { usuario } = useAuth()
@@ -15,7 +16,7 @@ export function useNotificaciones(onNotificacion) {
 
     const conectar = () => {
       const socket = new WebSocket(
-        `ws://127.0.0.1:8001/ws/${usuario.id}?token=${token}`
+        `${WS_BASE}/ws/${usuario.id}?token=${token}`
       )
 
       socket.onopen = () => {

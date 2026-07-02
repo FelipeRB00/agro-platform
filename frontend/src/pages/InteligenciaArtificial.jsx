@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import logo from '../assets/logo.png'
+import { API_BASE } from '../config'
 
 const tendenciaConfig = {
   alza: { color: 'text-red-600', bg: 'bg-red-50 border-red-200', icon: 'trending_up', label: 'En alza' },
@@ -383,7 +384,7 @@ export default function InteligenciaArtificial() {
                       {/* Imagen del producto */}
                       <div className="h-36 bg-gray-100 flex items-center justify-center overflow-hidden">
                         {rec.imagen_url ? (
-                          <img src={`http://127.0.0.1:8001${rec.imagen_url}`} alt={rec.nombre}
+                          <img src={`${API_BASE}${rec.imagen_url}`} alt={rec.nombre}
                             className="w-full h-full object-cover" />
                         ) : (
                           <span className="material-symbols-outlined text-5xl text-outline">image</span>

@@ -6,6 +6,7 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
+import { API_URL } from '../config'
 
 const estadoBadge = {
   entregado: 'bg-green-50 text-green-700 border border-green-200',
@@ -52,7 +53,7 @@ export default function HistorialPedidos() {
     try {
       const token = localStorage.getItem('token')
       const res = await fetch(
-        `http://127.0.0.1:8001/api/v1/reportes/historial/${formato}`,
+        `${API_URL}/reportes/historial/${formato}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const blob = await res.blob()

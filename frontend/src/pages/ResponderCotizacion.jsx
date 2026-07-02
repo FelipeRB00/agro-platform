@@ -4,6 +4,7 @@ import api from '../services/api'
 import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import ErrorMessage from '../components/ErrorMessage'
+import { API_BASE } from '../config'
 
 export default function ResponderCotizacion() {
   const navigate = useNavigate()
@@ -181,7 +182,7 @@ export default function ResponderCotizacion() {
                         <div className="mt-2 pt-2 border-t border-gray-200">
                           <div className="flex items-center gap-3">
                             {prod.imagen_url && (
-                              <img src={`http://127.0.0.1:8001${prod.imagen_url}`} alt={prod.nombre}
+                              <img src={`${API_BASE}${prod.imagen_url}`} alt={prod.nombre}
                                 className="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0" />
                             )}
                             <div className="flex-1 text-xs space-y-0.5">

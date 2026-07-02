@@ -5,6 +5,7 @@ import Sidebar from '../components/Sidebar'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import { API_BASE } from '../config'
 
 const estadoBadge = {
   aceptada: 'bg-green-100 text-green-800',
@@ -242,7 +243,7 @@ export default function Cotizaciones() {
                                     <td className="py-2">
                                       <div className="flex items-center gap-2">
                                         {item.imagen_url && (
-                                          <img src={`http://127.0.0.1:8001${item.imagen_url}`} alt={item.insumo_nombre}
+                                          <img src={`${API_BASE}${item.imagen_url}`} alt={item.insumo_nombre}
                                             className="w-8 h-8 rounded object-cover border border-gray-200 shrink-0" />
                                         )}
                                         <div>
