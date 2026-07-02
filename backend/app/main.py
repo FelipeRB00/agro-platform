@@ -11,6 +11,7 @@ from app.models import (usuario, proveedor, agricultor,
 from app.api.v1.routes import auth, insumos, listas, catalogo as catalogo_routes, cotizaciones, admin, ia, perfil, reportes, ws
 from app.db.seed import seed_insumos
 from app.models.comision import Comision
+from app.core.config import settings
 from fastapi.staticfiles import StaticFiles
 import os
 
@@ -43,10 +44,10 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS
+# CORS - lee los orígenes permitidos desde la configuración (variable FRONTEND_URL)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.origenes_cors,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,7 +72,6 @@ app.include_router(ia.router, prefix="/api/v1")
 app.include_router(perfil.router, prefix="/api/v1")
 app.include_router(reportes.router, prefix="/api/v1")
 app.include_router(ws.router)
-
 
 
 @app.get("/")
