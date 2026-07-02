@@ -44,6 +44,14 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+origins = [
+    "http://localhost:5173",
+    "https://tu-proyecto.vercel.app",
+    "https://cultivatech-indol.vercel.app/login",
+    "https://agro-platform-felipe-rb-00.vercel.app"
+]
+
+
 # CORS - lee los orígenes permitidos desde la configuración (variable FRONTEND_URL)
 app.add_middleware(
     CORSMiddleware,
