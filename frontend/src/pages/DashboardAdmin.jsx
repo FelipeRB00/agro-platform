@@ -46,7 +46,6 @@ export default function DashboardAdmin() {
     { label: 'Ingresos del Mes', value: fmt(resumen.ingresos_mes_actual), icon: 'trending_up', color: 'bg-green-100 text-green-700', sub: `${resumen.ventas_mes_actual} ventas este mes` },
     { label: 'Comisiones Totales', value: fmt(resumen.total_comisiones), icon: 'payments', color: 'bg-blue-100 text-blue-700', sub: 'Histórico acumulado' },
     { label: 'Ventas Totales', value: resumen.num_ventas, icon: 'receipt_long', color: 'bg-purple-100 text-purple-700', sub: fmt(resumen.total_ventas) + ' transado' },
-    { label: 'IVA Recaudado', value: fmt(resumen.total_iva), icon: 'account_balance', color: 'bg-orange-100 text-orange-700', sub: '19% sobre ventas' },
   ] : []
 
   return (
