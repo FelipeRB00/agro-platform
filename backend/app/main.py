@@ -36,19 +36,23 @@ app = FastAPI(
 # Crear carpeta de uploads si no existe
 os.makedirs("uploads/productos", exist_ok=True)
 
-# Servir archivos estáticos (después de crear app = FastAPI())
+# Servir archivos estáticos
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
 
 # Rate limit handler
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-
-# CORS - lee los orígenes permitidos desde la configuración (variable FRONTEND_URL)
+# ─────────────────────────────────────────────────────────────
+# CORS
+# - Permite los orígenes explícitos de FRONTEND_URL (localhost, etc.)
+# - Permite CUALQUIER subdominio *.vercel.app mediante regex
+#   (así no se rompe cuando Vercel genera un dominio nuevo en cada deploy)
+# ─────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origenes_cors,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
