@@ -18,7 +18,7 @@ from datetime import datetime
 # ─────────────────────────────────────────────────────────────
 # PEGA AQUÍ la DATABASE_PUBLIC_URL de Railway (entre las comillas)
 # ─────────────────────────────────────────────────────────────
-DATABASE_URL_RAILWAY = "postgresql://postgres:tZbqgjIVvueQvoYnlLEgmRdawyKrIVfx@hayabusa.proxy.rlwy.net:13880/railway"
+DATABASE_URL_RAILWAY = "postgresql://postgres:bCZhbwhQtGoocmGvzhuypwPAUXjiVKod@hayabusa.proxy.rlwy.net:19334/railway"
 
 
 # Corregir postgres:// -> postgresql:// si es necesario
